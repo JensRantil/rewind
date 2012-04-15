@@ -91,7 +91,7 @@ class IdGenerator:
 
 
 def build_socket(context, socket_type, bind_endpoints=[], connect_endpoints=[]):
-    socket = contect.socket(socket_type)
+    socket = context.socket(socket_type)
     for endpoint in bind_endpoints:
         socket.bind(endpoint)
     for endpoint in connect_endpoints:
@@ -174,8 +174,8 @@ def main(argv=None, exit=True):
                         help='the connect address for streaming of events',
                         action='append', dest='streaming_connect_endpoints')
 
-    argv = argv if argv else sys.argv[1:]
-    args = parser.parse_argv(args)
+    args = argv if argv else sys.argv[1:]
+    args = parser.parse_args(args)
 
     exitcode = run(args)
 
