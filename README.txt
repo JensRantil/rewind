@@ -7,6 +7,9 @@ GTDoit is a task manager based on David Allen's book Getting Things Done
 Developing
 ----------
 
+To start developing you need to install ZeroMQ on your system
+beforehand.
+
 To install:
 `python ./bootstrap.py`
 `./bin/buildout`
