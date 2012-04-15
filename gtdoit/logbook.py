@@ -1,3 +1,4 @@
+import sys
 import argparse
 import sys
 import logging
@@ -199,6 +200,18 @@ def main(argv=None, exit=True):
 
     args = argv if argv else sys.argv[1:]
     args = parser.parse_args(args)
+
+    if not args.incoming_bind_endpoints \
+       and not args.incoming_connect_endpoints \
+       and not args.query_bind_endpoints \
+       and not args.query_connect_endpoints:
+        errmsg = "You must either specify an incoming or query endpoint.\n" \
+                "(there's no use in simply having a streaming endpoint)"
+        if exit:
+            parser.error(errmsg)
+        else:
+            sys.stderr.write('%s\n' % errmsg)
+            return 2
 
     exitcode = run(args)
 
