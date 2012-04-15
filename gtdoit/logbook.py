@@ -154,25 +154,48 @@ def main(argv=None, exit=True):
     returns -- the return code of the programif exit is set to True. Otherwise
                it exits the Python interpreter before returning.
     """
-    parser = argparse.ArgumentParser(description='Event storage and proxy.')
-    parser.add_argument('--incoming-bind-endpoint', metavar='ZEROMQ-ENDPOINT',
-                        help='the bind address for incoming events',
-                        action='append', dest='incoming_bind_endpoints')
-    parser.add_argument('--incoming-connect-endpoint', metavar='ZEROMQ-ENDPOINT',
-                        help='the connect address for incoming events',
-                        action='append', dest='incoming_connect_endpoints')
-    parser.add_argument('--query-bind-endpoint', metavar='ZEROMQ-ENDPOINT',
-                        help='the bind address for querying of events',
-                        action='append', dest='query_bind_endpoints')
-    parser.add_argument('--query-connect-endpoint', metavar='ZEROMQ-ENDPOINT',
-                        help='the connect address for querying of events',
-                        action='append', dest='query_connect_endpoints')
-    parser.add_argument('--streaming-bind-endpoint', metavar='ZEROMQ-ENDPOINT',
-                        help='the bind address for streaming of events',
-                        action='append', dest='streaming_bind_endpoints')
-    parser.add_argument('--streaming-connect-endpoint', metavar='ZEROMQ-ENDPOINT',
-                        help='the connect address for streaming of events',
-                        action='append', dest='streaming_connect_endpoints')
+    parser = argparse.ArgumentParser(
+        description='Event storage and event proxy.'
+    )
+
+    incoming_group = parser.add_argument_group(
+        title='Incoming event endpoints',
+        description='ZeroMQ endpoint for incoming events.'
+    )
+    incoming_group.add_argument('--incoming-bind-endpoint', action='append',
+                                metavar='ZEROMQ-ENDPOINT',
+                                help='the bind address for incoming events',
+                                dest='incoming_bind_endpoints')
+    incoming_group.add_argument('--incoming-connect-endpoint', action='append',
+                                metavar='ZEROMQ-ENDPOINT',
+                                help='the connect address for incoming events',
+                                dest='incoming_connect_endpoints')
+    query_group = parser.add_argument_group(
+        title='Querying endpoints',
+        description='Endpoints listening for event queries.'
+    )
+    query_group.add_argument('--query-bind-endpoint',
+                             metavar='ZEROMQ-ENDPOINT',
+                             help='the bind address for querying of events',
+                             action='append', dest='query_bind_endpoints')
+    query_group.add_argument('--query-connect-endpoint',
+                             metavar='ZEROMQ-ENDPOINT',
+                             help='the connect address for querying of events',
+                             action='append', dest='query_connect_endpoints')
+    stream_group = parser.add_argument_group(
+        title='Streaming endpoints',
+        description='Endpoints for streaming incoming events.'
+    )
+    stream_group.add_argument('--streaming-bind-endpoint',
+                              metavar='ZEROMQ-ENDPOINT',
+                              help='the bind address for streaming of events',
+                              action='append',
+                              dest='streaming_bind_endpoints')
+    stream_group.add_argument('--streaming-connect-endpoint',
+                              metavar='ZEROMQ-ENDPOINT',
+                              help='the connect address for streaming of events',
+                              action='append',
+                              dest='streaming_connect_endpoints')
 
     args = argv if argv else sys.argv[1:]
     args = parser.parse_args(args)
