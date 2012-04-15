@@ -10,7 +10,6 @@ setup(
         'gtdoit',
         'gtdoit.test'
     ],
-    license='Reshipment must be approved by Jens Rantil', # TODO: Clarify
     long_description=open('README.txt').read(),
     install_requires=[
         "protobuf",
