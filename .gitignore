@@ -11,3 +11,4 @@ gtdoit/messages/*_pb2.py
 
 # Other files
 *.pyc
+.coverage
