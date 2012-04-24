@@ -212,7 +212,7 @@ def main(argv=None, exit=True):
         if exit:
             parser.error(errmsg)
         else:
-            sys.stderr.write('%s\n' % errmsg)
+            print errmsg
             return 2
 
     exitcode = run(args)
