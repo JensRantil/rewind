@@ -35,7 +35,7 @@ class EventStore(object):
         pass
 
     def __init__(self):
-        self.reset()
+        self._reset()
 
     def _reset(self):
         """Reset the event storage.
