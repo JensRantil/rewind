@@ -200,8 +200,14 @@ def main(argv=None, exit=True):
                               action='append',
                               dest='streaming_connect_endpoints')
 
-    args = argv if argv else sys.argv[1:]
-    args = parser.parse_args(args)
+    args = argv if argv is not None else sys.argv[1:]
+    try:
+        args = parser.parse_args(args)
+    except SystemExit as e:
+        if exit:
+            raise e
+        else:
+            return e.code
 
     if not args.incoming_bind_endpoints \
        and not args.incoming_connect_endpoints \
