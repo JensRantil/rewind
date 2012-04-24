@@ -166,11 +166,11 @@ def main(argv=None, exit=True):
         description='ZeroMQ endpoint for incoming events.'
     )
     incoming_group.add_argument('--incoming-bind-endpoint', action='append',
-                                metavar='ZEROMQ-ENDPOINT',
+                                metavar='ZEROMQ-ENDPOINT', default=[],
                                 help='the bind address for incoming events',
                                 dest='incoming_bind_endpoints')
     incoming_group.add_argument('--incoming-connect-endpoint', action='append',
-                                metavar='ZEROMQ-ENDPOINT',
+                                metavar='ZEROMQ-ENDPOINT', default=[],
                                 help='the connect address for incoming events',
                                 dest='incoming_connect_endpoints')
     query_group = parser.add_argument_group(
@@ -178,11 +178,11 @@ def main(argv=None, exit=True):
         description='Endpoints listening for event queries.'
     )
     query_group.add_argument('--query-bind-endpoint',
-                             metavar='ZEROMQ-ENDPOINT',
+                             metavar='ZEROMQ-ENDPOINT', default=[],
                              help='the bind address for querying of events',
                              action='append', dest='query_bind_endpoints')
     query_group.add_argument('--query-connect-endpoint',
-                             metavar='ZEROMQ-ENDPOINT',
+                             metavar='ZEROMQ-ENDPOINT', default=[],
                              help='the connect address for querying of events',
                              action='append', dest='query_connect_endpoints')
     stream_group = parser.add_argument_group(
@@ -190,12 +190,12 @@ def main(argv=None, exit=True):
         description='Endpoints for streaming incoming events.'
     )
     stream_group.add_argument('--streaming-bind-endpoint',
-                              metavar='ZEROMQ-ENDPOINT',
+                              metavar='ZEROMQ-ENDPOINT', default=[],
                               help='the bind address for streaming of events',
                               action='append',
                               dest='streaming_bind_endpoints')
     stream_group.add_argument('--streaming-connect-endpoint',
-                              metavar='ZEROMQ-ENDPOINT',
+                              metavar='ZEROMQ-ENDPOINT', default=[],
                               help='the connect address for streaming of events',
                               action='append',
                               dest='streaming_connect_endpoints')
