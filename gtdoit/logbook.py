@@ -127,6 +127,10 @@ def run(args):
 
         if incoming_socket in socks and socks[incoming_socket]==zmq.POLLIN:
             event = incoming_socket.recv()
+
+            if args.exit_message and event==args.exit_message:
+                break
+
             # TODO: Parse the incoming event
             # TODO: Create a new StoredEvent
             # TODO: Give the StoredEvent a unique ID
@@ -141,6 +145,10 @@ def run(args):
             #       SENDMORE
             pass
 
+    incoming_socket.close()
+    query_socket.close()
+    streaming_socket.close()
+    context.term()
     return 0
 
 
@@ -160,6 +168,9 @@ def main(argv=None, exit=True):
     parser = argparse.ArgumentParser(
         description='Event storage and event proxy.'
     )
+    parser.add_argument('--exit-codeword', metavar="MSG", dest="exit_message",
+                        help="An incoming message that makes the logbook quit."
+                             " Used for testing.")
 
     incoming_group = parser.add_argument_group(
         title='Incoming event endpoints',
