@@ -109,7 +109,7 @@ def run(args):
     query_socket = build_socket(context, zmq.REP,
                                 bind_endpoints=args.query_bind_endpoints,
                                 connect_endpoints=args.query_connect_endpoints)
-    streaming_socket = build_socket(context, xmq.PUB,
+    streaming_socket = build_socket(context, zmq.PUB,
                                     bind_endpoints=args.streaming_bind_endpoints,
                                     connect_endpoints=args.streaming_connect_endpoints)
 
