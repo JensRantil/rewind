@@ -141,6 +141,8 @@ def run(args):
             #       SENDMORE
             pass
 
+    return 0
+
 
 def main(argv=None, exit=True):
     """Entry point for the logbook.
