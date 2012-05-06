@@ -6,7 +6,8 @@ import uuid
 
 import zmq
 
-from gtdoit import messages
+import gtdoit.messages.events_pb2 as events_pb2
+import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
 
 
 class LogBookKeyError(KeyError):
@@ -126,18 +127,22 @@ def run(args):
         socks = dict(poller.poll())
 
         if incoming_socket in socks and socks[incoming_socket]==zmq.POLLIN:
-            event = incoming_socket.recv()
+            eventstr = incoming_socket.recv()
 
-            if args.exit_message and event==args.exit_message:
+            if args.exit_message and eventstr==args.exit_message:
                 break
 
-            # TODO: Parse the incoming event
-            # TODO: Create a new StoredEvent
-            # TODO: Give the StoredEvent a unique ID
-            # TODO: Store the recently received event in the new StoredEvent
-            # TODO: Serialize the StoredEvent
-            # TODO: Save the serialized StoredEvent to event store
-            # TODO: Sent the serialized StoredEvent to streaming_socket
+            event = events_pb2.Event()
+            event.ParseFromString(eventstr)
+            newid = id_generator.generate()
+            stored_event = eventhandling_pb2.StoredEvent(eventid=newid,
+                                                         event=event)
+
+            # Only serializing once
+            stored_event_str = stored_event.SerializeToString()
+
+            eventstore.add_event(newid, stored_event_str)
+            streaming_socket.send(eventstr)
 
         if query_socket in socks and socks[query_socket]==zmq.POLLIN:
             # TODO: Parse the incoming request
