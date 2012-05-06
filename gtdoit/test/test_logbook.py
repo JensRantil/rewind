@@ -6,6 +6,7 @@ import time
 import zmq
 
 import gtdoit.logbook
+import gtdoit.messages.events_pb2 as events_pb2
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -33,19 +34,50 @@ class TestLogbook(unittest.TestCase):
                                         name="logbook-test",
                                         args=(args,), kwargs={'exit': False})
         self.logbook.start()
-        self.context = zmq.Context(1)
 
-    def testThis(self):
-        # TODO: Make sure that events are being replicated
-        pass
+        self.context = zmq.Context(3)
+
+        self.transmitter = self.context.socket(zmq.PUSH)
+        self.receiver = self.context.socket(zmq.SUB)
+        self.receiver.setsockopt(zmq.SUBSCRIBE, '')
+
+        self.transmitter.connect('tcp://127.0.0.1:8090')
+        self.receiver.connect('tcp://127.0.0.1:8091')
+
+        # Making sure context.term() does not time out
+        # Could be removed if this test works as expected
+        self.transmitter.setsockopt(zmq.LINGER, 1000)
+
+    def testBasicEventProxying(self):
+        new_event = events_pb2.TaskCreated(taskid='1',
+                                           ownerid='2',
+                                           name='Buy milk')
+        event = events_pb2.Event(type=events_pb2.Event.TASK_CREATED,
+                                 task_created=new_event)
+
+        self.transmitter.send(event.SerializeToString())
+        received_string = self.receiver.recv()
+
+        received_event = events_pb2.Event()
+        received_event.ParseFromString(received_string)
+
+        self.assertEqual(received_event.type, events_pb2.Event.TASK_CREATED)
+        self.assertEqual(received_event.task_created.taskid, '1')
+        self.assertEqual(received_event.task_created.ownerid, '2')
+        self.assertEqual(received_event.task_created.name, 'Buy milk')
 
     def tearDown(self):
+        self.transmitter.close()
+        self.receiver.close()
+
+        self.assertTrue(self.logbook.isAlive(), "Did logbook crash? Not running.")
         socket = self.context.socket(zmq.PUSH)
+        socket.setsockopt(zmq.LINGER, 1000)
         socket.connect('tcp://127.0.0.1:8090')
         socket.send('EXIT')
         time.sleep(0.5) # Acceptable exit time
         self.assertFalse(self.logbook.isAlive())
-
         socket.close()
+
         self.context.term()
 
