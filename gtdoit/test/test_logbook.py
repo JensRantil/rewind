@@ -24,7 +24,7 @@ class TestArgumentParsing(unittest.TestCase):
         self.assertEqual(exitcode, 2)
 
 
-class TestProxying(unittest.TestCase):
+class TestLogbook(unittest.TestCase):
     def setUp(self):
         args = ['--exit-codeword', 'EXIT',
                 '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
