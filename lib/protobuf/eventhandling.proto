@@ -1,23 +1,29 @@
 package eventstreaming;
 import "events.proto";
 
-message EventStreamingCommand {
-	required EventStreamingCommandType command = 1;
+message EventRequest {
+	required EventRequestType command = 1;
 
-	enum EventStreamingCommandType {
-		STREAM_FROM_TO = 2;
+	enum EventRequestType {
+		RANGE_STREAM_REQUEST = 2;
 	}
 
-	optional EventStreamRange event_range = 2;
+	optional EventStreamRangeRequest event_range = 2;
 }
 
-message EventStreamRange {
-	optional string from = 1;
+message EventStreamRangeRequest {
+	// 'from' is a reserved word in Python
+	optional string fro = 1;
 	optional string to = 2;
 }
 
 message EventStreamingResponsePart {
-	optional events.Event event = 1;
+	optional StoredEvent stored_event = 1;
+}
+
+message StoredEvent {
+	required string eventid = 1;
+	required events.Event event = 2;
 }
 
 	

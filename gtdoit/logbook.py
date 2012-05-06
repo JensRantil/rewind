@@ -3,6 +3,7 @@ import argparse
 import sys
 import logging
 import uuid
+import itertools
 
 import zmq
 
@@ -145,10 +146,25 @@ def run(args):
             streaming_socket.send(eventstr)
 
         if query_socket in socks and socks[query_socket]==zmq.POLLIN:
-            # TODO: Parse the incoming request
-            # TODO: For-loop over the eventstore query result and send using
-            #       SENDMORE
-            pass
+            reqstr = query_socket.recv()
+            request = eventhandling_pb2.EventRequest()
+            request.ParseFromString(reqstr)
+            request_types = eventhandling_pb2.EventRequest
+            if request.command == request_types.RANGE_STREAM_REQUEST:
+                fro = request.event_range.fro
+                to = request.events_range.to
+                events = stored_query.get_events(from_=fro, to=to)
+
+                # Since we are using ZeroMQ enveloping we want to cap the
+                # maximum number of messages that are send for each request.
+                # Otherwise we might run out of memory for a lot of memory.
+                MAX_ELMNTS_PER_REQ = 100
+                events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ)
+                events = list(events)
+
+                for event in events[:-1]:
+                    query_socket.send(event, zmq.SNDMORE)
+                query_socket.send(events[-1])
 
     incoming_socket.close()
     query_socket.close()
