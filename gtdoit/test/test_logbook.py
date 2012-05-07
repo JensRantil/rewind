@@ -124,7 +124,6 @@ class TestLogbookReplication(unittest.TestCase):
             received_event.ParseFromString(received_string)
 
             self.assertEqual(received_event.type, events_pb2.Event.TASK_CREATED)
-            print i, received_event.task_created.taskid
             self.assertEqual(received_event.task_created.taskid,
                              '{0}'.format(2*i))
             self.assertEqual(received_event.task_created.ownerid,
