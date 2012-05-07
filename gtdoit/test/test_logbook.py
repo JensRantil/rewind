@@ -66,6 +66,37 @@ class TestLogbook(unittest.TestCase):
         self.assertEqual(received_event.task_created.ownerid, '2')
         self.assertEqual(received_event.task_created.name, 'Buy milk')
 
+    def testProxyingABunchOfEvents(self):
+        NMESSAGES = 200
+
+        # Sending
+        new_event = events_pb2.TaskCreated()
+        for i in range(NMESSAGES):
+            new_event.taskid = '{0}'.format(2*i)
+            new_event.ownerid = '{0}'.format(i+1)
+            new_event.name = 'Buy milk number {0}'.format(i)
+
+            event = events_pb2.Event(type=events_pb2.Event.TASK_CREATED,
+                                     task_created=new_event)
+            self.transmitter.send(event.SerializeToString())
+
+        # Receiving and asserting correct messages
+        received_event = events_pb2.Event()
+        for i in range(NMESSAGES):
+            received_string = self.receiver.recv(zmq.NOBLOCK)
+
+            received_event.ParseFromString(received_string)
+
+            self.assertEqual(received_event.type, events_pb2.Event.TASK_CREATED)
+            print i, received_event.task_created.taskid
+            self.assertEqual(received_event.task_created.taskid,
+                             '{0}'.format(2*i))
+            self.assertEqual(received_event.task_created.ownerid,
+                             '{0}'.format(i+1))
+            self.assertEqual(received_event.task_created.name,
+                             'Buy milk {0}'.format(i))
+
+
     def tearDown(self):
         self.transmitter.close()
         self.receiver.close()
