@@ -105,7 +105,8 @@ class TestLogbook(unittest.TestCase):
         self.transmitter.close()
         self.receiver.close()
 
-        self.assertTrue(self.logbook.isAlive(), "Did logbook crash? Not running.")
+        self.assertTrue(self.logbook.isAlive(),
+                        "Did logbook crash? Not running.")
         socket = self.context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect('tcp://127.0.0.1:8090')
