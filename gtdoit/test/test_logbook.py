@@ -98,7 +98,7 @@ class TestLogbook(unittest.TestCase):
             self.assertEqual(received_event.task_created.ownerid,
                              '{0}'.format(i+1))
             self.assertEqual(received_event.task_created.name,
-                             'Buy milk {0}'.format(i))
+                             'Buy milk number {0}'.format(i))
 
 
     def tearDown(self):
