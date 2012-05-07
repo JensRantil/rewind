@@ -87,7 +87,7 @@ class TestLogbook(unittest.TestCase):
         # Receiving and asserting correct messages
         received_event = events_pb2.Event()
         for i in range(NMESSAGES):
-            received_string = self.receiver.recv(zmq.NOBLOCK)
+            received_string = self.receiver.recv()
 
             received_event.ParseFromString(received_string)
 
