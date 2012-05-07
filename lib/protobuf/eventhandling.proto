@@ -2,7 +2,7 @@ package eventstreaming;
 import "events.proto";
 
 message EventRequest {
-	required EventRequestType command = 1;
+	required EventRequestType type = 1;
 
 	enum EventRequestType {
 		RANGE_STREAM_REQUEST = 2;
@@ -17,14 +17,8 @@ message EventStreamRangeRequest {
 	optional string to = 2;
 }
 
-message EventStreamingResponsePart {
-	optional StoredEvent stored_event = 1;
-}
-
 message StoredEvent {
 	required string eventid = 1;
 	required events.Event event = 2;
 }
 
-	
-	
