@@ -100,6 +100,10 @@ class TestLogbook(unittest.TestCase):
             self.assertEqual(received_event.task_created.name,
                              'Buy milk number {0}'.format(i))
 
+    def testMessageOrdering(self):
+        """Making sure that messages are received in the correct order"""
+        # TODO: Write
+        pass
 
     def tearDown(self):
         self.transmitter.close()
