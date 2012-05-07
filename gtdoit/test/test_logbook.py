@@ -44,6 +44,10 @@ class TestLogbook(unittest.TestCase):
         self.transmitter.connect('tcp://127.0.0.1:8090')
         self.receiver.connect('tcp://127.0.0.1:8091')
 
+        # Time it takes to connect. This is particularly important so that the
+        # receiver does not just receive the tail of the stream.
+        time.sleep(0.5)
+
         # Making sure context.term() does not time out
         # Could be removed if this test works as expected
         self.transmitter.setsockopt(zmq.LINGER, 1000)
