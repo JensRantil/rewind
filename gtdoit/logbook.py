@@ -3,6 +3,7 @@ import argparse
 import sys
 import logging
 import uuid
+import itertools
 
 import zmq
 
@@ -62,15 +63,18 @@ class EventStore(object):
         if to and (to not in self.keys or to not in self.events):
             raise EventKeyDoesNotExistError("Could not find the from_ key: %s" %
                                             to)
-        fromindex = self.keys.index(from_) if from_ else 0
-        toindex = self.keys.index(to) if to else len(self.events)
+        
+        # +1 here because we have already seen the event we are asking for
+        fromindex = self.keys.index(from_)+1 if from_ else 0
+
+        toindex = self.keys.index(to)+1 if to else len(self.events)
         if fromindex > toindex:
             raise LogBookEventOrderError("'From' index came after 'To'. \
                                          Keys: (%s, %s) \
                                          Indices: (%s, %s)" % (from_, to,
                                                                fromindex,
                                                                toindex))
-        return (self.events[key] for key in self.events[fromindex:toindex])
+        return (self.events[key] for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
         return key in self.keys
@@ -145,10 +149,32 @@ def run(args):
             streaming_socket.send(eventstr)
 
         if query_socket in socks and socks[query_socket]==zmq.POLLIN:
-            # TODO: Parse the incoming request
-            # TODO: For-loop over the eventstore query result and send using
-            #       SENDMORE
-            pass
+            reqstr = query_socket.recv()
+            request = eventhandling_pb2.EventRequest()
+            request.ParseFromString(reqstr)
+            request_types = eventhandling_pb2.EventRequest
+            if request.type == request_types.RANGE_STREAM_REQUEST:
+                fro = request.event_range.fro
+                to = request.event_range.to
+                events = eventstore.get_events(from_=fro, to=to)
+
+                # Since we are using ZeroMQ enveloping we want to cap the
+                # maximum number of messages that are send for each request.
+                # Otherwise we might run out of memory for a lot of memory.
+                MAX_ELMNTS_PER_REQ = 100
+                events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
+                events = list(events)
+                if len(events)==MAX_ELMNTS_PER_REQ+1:
+                    # There are more elements, but we are capping the result
+                    for event in events[:-1]:
+                        query_socket.send(event, zmq.SNDMORE)
+                    query_socket.send(events[-1])
+                else:
+                    # Sending all events. Ie., we are not capping
+                    for event in events:
+                        query_socket.send(event, zmq.SNDMORE)
+                    query_socket.send("END")
+
 
     incoming_socket.close()
     query_socket.close()
