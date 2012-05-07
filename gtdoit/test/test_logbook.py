@@ -159,12 +159,18 @@ class TestLogbookQuerying(unittest.TestCase):
             transmitter.send(event.SerializeToString())
         transmitter.close()
 
+    def _getAllPastEvents(self):
+        """Get all past events.
+
+        Helper class function to get the eventids of the events.
+
+        This function is tested through testSyncAllPastEvents(...).
+        """
+        return [event for event in self.querier.query()]
+
     def testSyncAllPastEvents(self):
         time.sleep(0.5) # Max time to persist the messages
-        events = [event for event in self.querier.query()]
-        for received_stored_event in events:
-            received = received_stored_event.event
-            recvd = received.task_created
+        events = self._getAllPastEvents()
 
         self.assertEqual(events[0].event.task_created.taskid,
                          self.sent[0].task_created.taskid,
@@ -183,16 +189,26 @@ class TestLogbookQuerying(unittest.TestCase):
             self.assertEqual(recvd.name, sentd.name)
 
     def testSyncEventsSince(self):
-        # TODO: Write.
-        pass
-
+        time.sleep(0.5) # Max time to persist the messages
+        allevents = self._getAllPastEvents()
+        from_ = allevents[3].eventid
+        events = [event for event in self.querier.query(from_=from_)]
+        self.assertEqual(allevents[4:], events)
+        
     def testSyncEventsBefore(self):
-        # TODO: Write.
-        pass
+        time.sleep(0.5) # Max time to persist the messages
+        allevents = self._getAllPastEvents()
+        to = allevents[-3].eventid
+        events = [event for event in self.querier.query(to=to)]
+        self.assertEqual(allevents[:-2], events)
 
     def testSyncEventsBetween(self):
-        # TODO: Write.
-        pass
+        time.sleep(0.5) # Max time to persist the messages
+        allevents = self._getAllPastEvents()
+        from_ = allevents[3].eventid
+        to = allevents[-3].eventid
+        events = [event for event in self.querier.query(from_=from_, to=to)]
+        self.assertEqual(allevents[4:-2], events)
 
     def tearDown(self):
         self.query_socket.close()
