@@ -4,6 +4,7 @@ import sys
 import logging
 import uuid
 import itertools
+import contextlib
 
 import zmq
 
@@ -100,90 +101,149 @@ class IdGenerator:
         return key
 
 
-def build_socket(context, socket_type, bind_endpoints=[], connect_endpoints=[]):
+class _LogBookRunner(object):
+    """ Helper class for splitting the runnable part of Logbook into logical
+        parts.
+
+    The state of the class is the state necessary to execute the application.
+    """
+    def __init__(self, eventstore, incoming_socket, query_socket,
+                 streaming_socket, exit_message=None):
+        """Constructor."""
+        self.eventstore = eventstore
+        self.incoming_socket = incoming_socket
+        self.query_socket = query_socket
+        self.streaming_socket = streaming_socket
+        self.exit_message = exit_message
+
+        self.id_generator = IdGenerator(key_exists=lambda key:
+                                        eventstore.key_exists(key))
+
+        # Initialize poll set
+        self.poller = zmq.Poller()
+        self.poller.register(incoming_socket, zmq.POLLIN)
+        self.poller.register(query_socket, zmq.POLLIN)
+
+    def run(self):
+        """ Actually run the program infinitely, or until an exit message is
+            received.
+        """
+        while self._handle_one_message():
+            pass
+
+    def _handle_one_message(self):
+        """Handle one single incoming message on any socket.
+
+        This is the inner loop of the main application loop.
+        """
+        socks = dict(self.poller.poll())
+
+        if self.incoming_socket in socks \
+           and socks[self.incoming_socket]==zmq.POLLIN:
+            return self._handle_incoming_event()
+        elif self.query_socket in socks \
+                and socks[self.query_socket]==zmq.POLLIN:
+            return self._handle_query()
+
+    def _handle_incoming_event(self):
+        """Handle an incoming event."""
+        eventstr = self.incoming_socket.recv()
+
+        if self.exit_message and eventstr==self.exit_message:
+            return False
+
+        event = events_pb2.Event()
+        event.ParseFromString(eventstr)
+        newid = self.id_generator.generate()
+        stored_event = eventhandling_pb2.StoredEvent(eventid=newid,
+                                                     event=event)
+
+        # Only serializing once
+        stored_event_str = stored_event.SerializeToString()
+
+        self.eventstore.add_event(newid, stored_event_str)
+        self.streaming_socket.send(eventstr)
+
+        return True
+
+    def _handle_query(self):
+        """Handle an event query."""
+        reqstr = self.query_socket.recv()
+        request = eventhandling_pb2.EventRequest()
+        request.ParseFromString(reqstr)
+        request_types = eventhandling_pb2.EventRequest
+        if request.type == request_types.RANGE_STREAM_REQUEST:
+            fro = request.event_range.fro
+            to = request.event_range.to
+            events = self.eventstore.get_events(from_=fro, to=to)
+
+            # Since we are using ZeroMQ enveloping we want to cap the
+            # maximum number of messages that are send for each request.
+            # Otherwise we might run out of memory for a lot of memory.
+            MAX_ELMNTS_PER_REQ = 100
+            events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
+            events = list(events)
+            if len(events)==MAX_ELMNTS_PER_REQ+1:
+                # There are more elements, but we are capping the result
+                for event in events[:-1]:
+                    self.query_socket.send(event, zmq.SNDMORE)
+                self.query_socket.send(events[-1])
+            else:
+                # Sending all events. Ie., we are not capping
+                for event in events:
+                    self.query_socket.send(event, zmq.SNDMORE)
+                self.query_socket.send("END")
+
+        return True
+
+
+@contextlib.contextmanager
+def zmq_context_context(*args):
+    """A ZeroMQ context context that both constructs and terminates it."""
+    context = zmq.Context(*args)
+    try:
+        yield context
+    finally:
+        context.term()
+
+
+@contextlib.contextmanager
+def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
+    """A ZeroMQ socket context that both constructs a socket and closes it."""
     socket = context.socket(socket_type)
-    for endpoint in bind_endpoints:
-        socket.bind(endpoint)
-    for endpoint in connect_endpoints:
-        socket.connect(endpoint)
-    return socket
+    try:
+        for endpoint in bind_endpoints:
+            socket.bind(endpoint)
+        for endpoint in connect_endpoints:
+            socket.connect(endpoint)
+        yield socket
+    finally:
+        socket.close()
 
 
 def run(args):
     """Actually execute the program."""
-    context = zmq.Context(1)
-    incoming_socket = build_socket(context, zmq.PULL,
-                                   bind_endpoints=args.incoming_bind_endpoints,
-                                   connect_endpoints=args.incoming_connect_endpoints)
-    query_socket = build_socket(context, zmq.REP,
-                                bind_endpoints=args.query_bind_endpoints,
-                                connect_endpoints=args.query_connect_endpoints)
-    streaming_socket = build_socket(context, zmq.PUB,
-                                    bind_endpoints=args.streaming_bind_endpoints,
-                                    connect_endpoints=args.streaming_connect_endpoints)
-
     eventstore = EventStore()
-    id_generator = IdGenerator(key_exists=lambda key:
-                               eventstore.key_exists(key))
 
-    # Initialize poll set
-    poller = zmq.Poller()
-    poller.register(incoming_socket, zmq.POLLIN)
-    poller.register(query_socket, zmq.POLLIN)
+    with zmq_context_context(3) as context, \
+            zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
+                               args.incoming_connect_endpoints) \
+                as incoming_socket, \
+            zmq_socket_context(context, zmq.REP, args.query_bind_endpoints,
+                               args.query_connect_endpoints) \
+                as query_socket, \
+            zmq_socket_context(context, zmq.PUB, args.streaming_bind_endpoints,
+                               args.streaming_connect_endpoints) \
+                as streaming_socket:
+        # Executing the program in the context of ZeroMQ context as well as
+        # ZeroMQ sockets. Using with here to make sure are correctly closing
+        # things in the correct order, particularly also if we have an exception
+        # or similar.
 
-    while True:
-        socks = dict(poller.poll())
+        runner = _LogBookRunner(eventstore, incoming_socket, query_socket,
+                                streaming_socket, args.exit_message)
+        runner.run()
 
-        if incoming_socket in socks and socks[incoming_socket]==zmq.POLLIN:
-            eventstr = incoming_socket.recv()
-
-            if args.exit_message and eventstr==args.exit_message:
-                break
-
-            event = events_pb2.Event()
-            event.ParseFromString(eventstr)
-            newid = id_generator.generate()
-            stored_event = eventhandling_pb2.StoredEvent(eventid=newid,
-                                                         event=event)
-
-            # Only serializing once
-            stored_event_str = stored_event.SerializeToString()
-
-            eventstore.add_event(newid, stored_event_str)
-            streaming_socket.send(eventstr)
-
-        if query_socket in socks and socks[query_socket]==zmq.POLLIN:
-            reqstr = query_socket.recv()
-            request = eventhandling_pb2.EventRequest()
-            request.ParseFromString(reqstr)
-            request_types = eventhandling_pb2.EventRequest
-            if request.type == request_types.RANGE_STREAM_REQUEST:
-                fro = request.event_range.fro
-                to = request.event_range.to
-                events = eventstore.get_events(from_=fro, to=to)
-
-                # Since we are using ZeroMQ enveloping we want to cap the
-                # maximum number of messages that are send for each request.
-                # Otherwise we might run out of memory for a lot of memory.
-                MAX_ELMNTS_PER_REQ = 100
-                events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
-                events = list(events)
-                if len(events)==MAX_ELMNTS_PER_REQ+1:
-                    # There are more elements, but we are capping the result
-                    for event in events[:-1]:
-                        query_socket.send(event, zmq.SNDMORE)
-                    query_socket.send(events[-1])
-                else:
-                    # Sending all events. Ie., we are not capping
-                    for event in events:
-                        query_socket.send(event, zmq.SNDMORE)
-                    query_socket.send("END")
-
-
-    incoming_socket.close()
-    query_socket.close()
-    streaming_socket.close()
-    context.term()
     return 0
 
 
