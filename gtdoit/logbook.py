@@ -101,7 +101,7 @@ class IdGenerator:
         return key
 
 
-class _LogBookRunner(object):
+class LogBookRunner(object):
     """ Helper class for splitting the runnable part of Logbook into logical
         parts.
 
@@ -240,8 +240,8 @@ def run(args):
         # things in the correct order, particularly also if we have an exception
         # or similar.
 
-        runner = _LogBookRunner(eventstore, incoming_socket, query_socket,
-                                streaming_socket, args.exit_message)
+        runner = LogBookRunner(eventstore, incoming_socket, query_socket,
+                               streaming_socket, args.exit_message)
         runner.run()
 
     return 0
