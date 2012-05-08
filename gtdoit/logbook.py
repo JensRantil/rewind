@@ -11,6 +11,9 @@ import gtdoit.messages.events_pb2 as events_pb2
 import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
 
 
+logger = logging.getLogger(__name__)
+
+
 class LogBookKeyError(KeyError):
     pass
 
@@ -91,7 +94,8 @@ class IdGenerator:
     def generate(self):
         key = self._propose_new_key()
         while self.key_exists(key):
-            # TODO: Make sure that we don't end up in a infinite loop here
+            logger.warning('Previous candidate was used.'
+                           ' Regenerating another...')
             key = self._propose_new_key()
         return key
 
