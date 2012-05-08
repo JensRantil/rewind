@@ -16,10 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 class LogBookKeyError(KeyError):
+    """Exception thrown if a requested key did not exist."""
     pass
 
 
 class LogBookEventOrderError(IndexError):
+    """Exception thrown if requested key is in wrong (chronological) order.
+
+    That is if from-key was generated after to-key.
+    """
     pass
 
 
