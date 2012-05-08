@@ -37,9 +37,6 @@ class EventStore(object):
     class EventKeyDoesNotExistError(LogBookKeyError):
         pass
 
-    class EventIndexError(IndexError):
-        pass
-
     def __init__(self):
         self._reset()
 
