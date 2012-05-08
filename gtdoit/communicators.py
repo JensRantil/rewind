@@ -6,6 +6,7 @@ import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
 
 class EventQuerier(object):
     def __init__(self, socket):
+        """Constructor."""
         self.socket = socket
 
     def query(self, from_=None, to=None):
