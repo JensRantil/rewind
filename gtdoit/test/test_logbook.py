@@ -12,11 +12,11 @@ import gtdoit.messages.events_pb2 as events_pb2
 import gtdoit.communicators as communicators
 
 
-class TestEventStore(unittest.TestCase):
+class TestInMemoryEventStore(unittest.TestCase):
     def setUp(self):
         self.keys = [str(i) for i in range(10)]
         self.vals = [str(i+30) for i in range(10)]
-        self.store = gtdoit.logbook.EventStore()
+        self.store = gtdoit.logbook.InMemoryEventStore()
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 

@@ -5,6 +5,7 @@ import logging
 import uuid
 import itertools
 import contextlib
+import abc
 
 import zmq
 
@@ -31,17 +32,31 @@ class LogBookEventOrderError(IndexError):
 class EventStore(object):
     """Stores events and keeps track of their order.
     
-    Thread safe.
-
-    TODO: Currently this uses an in-memory implementation. Needs to be
-    persisted.
+    Abstract class.
     """
+    __metaclass__ = abc.ABCMeta
+
     class EventKeyAlreadyExistError(LogBookKeyError):
         pass
 
     class EventKeyDoesNotExistError(LogBookKeyError):
         pass
 
+    @abc.abstractmethod
+    def add_event(self, key, event):
+        pass
+
+    @abc.abstractmethod
+    def get_events(self, from_=None, to=None):
+        pass
+
+    @abc.abstractmethod
+    def key_exists(self, key):
+        pass
+
+
+class InMemoryEventStore(EventStore):
+    """Stores events in-memory and keeps track of their order."""
     def __init__(self):
         self._reset()
 
@@ -84,6 +99,8 @@ class EventStore(object):
 
     def key_exists(self, key):
         return key in self.keys
+
+EventStore.register(InMemoryEventStore)
 
 
 class IdGenerator:
@@ -225,7 +242,7 @@ def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
 
 def run(args):
     """Actually execute the program."""
-    eventstore = EventStore()
+    eventstore = InMemoryEventStore()
 
     with zmq_context_context(3) as context, \
             zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
