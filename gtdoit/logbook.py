@@ -6,6 +6,10 @@ import uuid
 import itertools
 import contextlib
 import abc
+import sqlite3
+import base64
+import os
+#import os.path
 
 import zmq
 
@@ -101,6 +105,361 @@ class InMemoryEventStore(EventStore):
         return key in self.keys
 
 EventStore.register(InMemoryEventStore)
+
+
+class _SQLiteEventStore(EventStore):
+    """Stores events in an sqlite database."""
+    def __init__(self, path):
+        # isolation_level=None => autocommit mode
+        self.conn = sqlite3.connect(path, isolation_level=None)
+
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS events(
+                eventid INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT UNIQUE,
+                event BLOB
+            );
+        ''');
+        # TODO: Define indices
+
+    def add_event(self, key, event):
+        self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
+                     (key, event))
+
+    def get_events(self, from_=None, to=None):
+        if from_ and not self.key_exists(from_):
+            raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
+        if to and not self.key_exists(to):
+            raise EventStore.EventKeyDoesNotExistError('to=%s' % to)
+
+        # +1 below because we have already seen the event
+        fromindex = self._get_eventid(from_)+1 if from_ else 0
+        toindex = self._get_eventid(to) if to else None
+        if from_ and to and fromindex > toindex:
+            raise LogBookEventOrderError("'to' happened cronologically before"
+                                         " 'from_'.")
+
+        if toindex:
+            sql = 'SELECT event FROM events WHERE eventid BETWEEN ? AND ?'
+            params = (fromindex, toindex)
+        else:
+            sql = 'SELECT event FROM events WHERE eventid >= ?'
+            params = (fromindex,)
+        return [row[0] for row in self.conn.execute(sql, params)]
+
+    def _get_eventid(self, uuid):
+        cursor = self.conn.cursor()
+        with contextlib.closing(cursor):
+            cursor.execute('SELECT eventid FROM events WHERE uuid=?', (uuid,))
+            res = cursor.fetchone()
+            return res[0]
+
+    def key_exists(self, key):
+        cursor = self.conn.cursor()
+        with contextlib.closing(cursor):
+            cursor.execute('SELECT COUNT(*) FROM events WHERE uuid=?', (key,))
+            res = cursor.fetchone()
+            return res[0]
+
+    def count(self):
+        """Return the number of events in the db."""
+        cursor = self.conn.cursor()
+        with contextlib.closing(cursor):
+            cursor.execute('SELECT COUNT(*) FROM events')
+            res = cursor.fetchone()
+            return res[0]
+
+    def close(self):
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+
+EventStore.register(_SQLiteEventStore)
+
+
+class _LogEventStore(EventStore):
+    def __init__(self, path):
+        self.path = path
+        self._open()
+
+    def _open(self):
+        self.f = open(self.path, 'ab')
+
+    def _close(self):
+        if self.f:
+            self.f.close()
+            self.f = None
+
+    def add_event(self, key, event):
+        if all([char.isalnum() or char=='-' for char in key]):
+            safe_key = key
+        else:
+            raise ValueError("Key must be alphanumeric or a dash (-):"
+                             " {0}".format(key))
+        safe_event = base64.encodestring(event).strip()
+        if not all([char.isalnum() or char=='=' for char in safe_event]):
+            raise ValueError("Safe event string must be alphanumeric or '=':"
+                             " {0}".format(safe_event))
+        data = "{0}\t{1}\n".format(safe_key, safe_event)
+        
+        # Important to make a single atomic write here
+        self.f.write(data)
+
+    def _unsafe_get_events(self, from_, to):
+        eventstrs = []
+        with open(self.path) as f:
+            # Find events from 'from_' (or start if not given, that is)
+            if from_:
+                for line in f:
+                    key, eventstr = line.strip().split("\t")
+                    if key == from_:
+                        break
+
+            # Continue until 'to' (if given, that is)
+            found_to = False
+            for line in f:
+                key, eventstr = line.strip().split("\t")
+                eventstrs.append(eventstr)
+                if to and to == key:
+                    found_to = True
+                    break
+            if to and not found_to:
+                raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
+
+        return [base64.decodestring(eventstr) for eventstr in eventstrs]
+
+    def get_events(self, from_=None, to=None):
+        """Get events.
+
+        Does never throw LogBookEventOrderError because it is hard to detect
+        from an append-only file.
+        """
+        self._close()
+        try:
+            return self._unsafe_get_events(from_=from_, to=to)
+        finally:
+            self._open()
+
+    def _unsafe_key_exists(self, needle):
+        eventstrs = []
+        with open(self.path) as f:
+            # Find events from 'from_' (or start if not given, that is)
+            for line in f:
+                key, eventstr = line.strip().split("\t")
+                if key == needle:
+                    return True
+        return False
+
+    def key_exists(self, key):
+        """Checks for key existence.
+
+        Makes a linear search and is very slow.
+        """
+        self._close()
+        try:
+            return self._unsafe_key_exists(key)
+        finally:
+            self._open()
+
+    def close(self):
+        self._close()
+
+EventStore.register(_LogEventStore)
+
+
+class PersistedEventStore(EventStore):
+    """Stores events persisted on disk and keeps track of their order."""
+
+    # Number of keys we remember to make the unique checks of keys.
+    EVENTS_PER_BATCH = 25000
+
+    # Filename prefix for event database
+    DATABASE_PREFIX = "eventdb."
+
+    # Filename prefix for event log
+    LOG_PREFIX = "eventlog."
+
+    class IntegrityError(RuntimeError):
+        pass
+
+    def __init__(self, dirpath):
+        """Construct a persisted event store that is stored on disk.
+        
+        Parameters:
+        dirpath -- the directory where the event logs will be stored.
+        """
+        self.logpath = os.path.join(dirpath, 'logs')
+        self.dbpath = os.path.join(dirpath, 'dbs')
+
+        if not os.path.exists(dirpath):
+            logger.info('Creating eventstore directory: %s', dirpath)
+            os.mkdir(dirpath)
+        if not os.path.exists(self.logpath):
+            logger.info('Creating event log directory: %s', self.logpath)
+            os.mkdir(self.logpath)
+        if not os.path.exists(self.dbpath):
+            logger.info('Creating event database directory: %s', self.dbpath)
+            os.mkdir(self.dbpath)
+
+        PersistedEventStore._check_filesystem_integrity(self.logpath,
+                                                       self.dbpath)
+
+        self.batchno = self._get_current_batchno(self.logpath, self.dbpath)
+        self._open_event_stores()
+
+        # TODO: Test that 'md5sum' exists
+
+    def _rotate_files_if_needed(self):
+        if self.db.count() > PersistedEventStore.EVENTS_PER_BATCH:
+            self._rotate()
+
+    def _rotate_files(self):
+        self._close_event_stores()
+        self.batchno += 1
+        self._open_event_stores()
+
+    def _open_event_stores(self):
+        """Prepare the backend event stores for reading and writing."""
+        dbpath = os.path.join(self.dbpath, PersistedEventStore.DATABASE_PREFIX
+                                            + str(self.batchno))
+        self.db = _SQLiteEventStore(dbpath)
+        
+        logpath = os.path.join(self.logpath, PersistedEventStore.LOG_PREFIX
+                                              + str(self.batchno))
+        self.log = _LogEventStore(logpath)
+
+    def _close_event_stores(self):
+        """Signal that we are done with the backend event stores."""
+        self.db.close()
+        self.db = None
+        self.log.close()
+        self.log = None
+
+    def close(self):
+        self._close_event_stores()
+
+    @staticmethod
+    def _get_current_batchno(logpath, dbpath):
+        # Simply shortened constants
+        dbprefix = PersistedEventStore.DATABASE_PREFIX
+        logprefix = PersistedEventStore.LOG_PREFIX
+
+        dbfiles = os.listdir(dbpath)
+        logfiles = os.listdir(logpath)
+
+        if dbfiles:
+            db_batchnos = [dbfile[len(dbprefix):] for dbfile in dbfiles]
+            last_db_batch = max([int(batchno) for batchno in db_batchnos])
+        else:
+            last_db_batch = 0
+        if logfiles:
+            log_batchnos = [logfile[len(logprefix):] for logfile in logfiles]
+            last_log_batch = max([int(batchno) for batchno in log_batchnos])
+        else:
+            last_log_batch = 0
+
+        if last_db_batch != last_log_batch:
+            raise IntegrityError("Log and database had not same last batch"
+                                 " number.")
+
+        return last_db_batch
+
+    @staticmethod
+    def _check_filesystem_integrity(logpath, dbpath):
+        """Check the filesystem integrity of the files.
+        
+        Static class function to minimize state.
+        """
+        PersistedEventStore._test_log_filename_format(logpath)
+        PersistedEventStore._test_db_filename_format(dbpath)
+
+        # Simply shortened constants
+        dbprefix = PersistedEventStore.DATABASE_PREFIX
+        logprefix = PersistedEventStore.LOG_PREFIX
+
+        dbfiles = os.listdir(dbpath)
+        logfiles = os.listdir(logpath)
+
+        for batchno in range(max(len(dbfiles), len(logfiles))):
+            dbfile = os.path.join(dbpath,
+                                  "{0}{1}".format(dbprefix, batchno))
+            logfile = os.path.join(logpath,
+                                   "{0}{1}".format(logprefix, batchno))
+
+            # Tests
+            dbfile_exists = os.path.exists(dbfile)
+            logfile_exists = os.path.exists(logfile)
+            if not dbfile_exists:
+                logger.warn("Integrity issue. Missing file: %s", dbfile)
+            if not logfile_exists:
+                logger.warn("Integrity issue. Missing file: %s", logfile)
+            if not dbfile_exists:
+                PersistedEventStore.IntegrityError("Missing file: %s",
+                                                   dbfile)
+            if not logfile_exists:
+                PersistedEventStore.IntegrityError("Missing file: %s",
+                                                   logfile)
+            if not os.path.isfile(dbfile):
+                PersistedEventStore.IntegrityError("Not regular file: %s",
+                                                   dbfile)
+            if not os.path.isfile(logfile):
+                PersistedEventStore.IntegrityError("Not regular file: %s",
+                                                   logfile)
+
+            # TODO: Recreate database from log if it seems corrupt.
+            # TODO: Fail only if database exists, but log does not.
+            
+        # TODO: Write code that verifies MD5 for logs
+
+    @staticmethod
+    def _test_filename_format(path, prefix, ignore=[]):
+        files = os.listdir(path)
+        for filename in files:
+            if not filename.startswith(prefix) and filename not in ignore:
+                raise PersistedEventStore.IntegrityError('Incorrect filename'
+                                                         ' format: %s',
+                                                         filename)
+
+    @staticmethod
+    def _test_log_filename_format(logpath):
+        """Test the format of the log filename."""
+        prefix = PersistedEventStore.LOG_PREFIX
+        # TODO: Add MD5-file as an exception
+        PersistedEventStore._test_filename_format(logpath, prefix)
+
+    @staticmethod
+    def _test_db_filename_format(dbpath):
+        """Test the format of the database filename."""
+        prefix = PersistedEventStore.DATABASE_PREFIX
+        PersistedEventStore._test_filename_format(dbpath, prefix)
+
+    def add_event(self, key, event):
+        if self.key_exists(key):
+            # This check might actually also be done further up in the chain
+            # (read: _SQLiteEventStore). Could potentially be removed if it
+            # requires a lot of processor cycles.
+            raise EventKeyAlreadyExistError("The key already existed: %s" % key)
+
+        self._rotate_files_if_needed()
+
+        # Since I guess _LogEventStore is less mature codewise than
+        # _SQLiteEventStore I am writing to that log file first. If something
+        # fails we are not writing to _SQLiteEventStore.
+        self.log.add_event(key, event)
+        self.db.add_event(key, event)
+
+    def get_events(self, from_=None, to=None):
+        return self.db.get_events(from_=from_, to=to)
+
+    def key_exists(self, key):
+        """Checks for event key existence.
+
+        This check is actually only done to the last batch to make is really
+        fast. Therefor, it's mostly to make sure we have a sane UUID generator.
+        """
+        return self.db.key_exists(key)
+
+EventStore.register(PersistedEventStore)
 
 
 class IdGenerator:
@@ -242,7 +601,12 @@ def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
 
 def run(args):
     """Actually execute the program."""
-    eventstore = InMemoryEventStore()
+    if args.datadir:
+        eventstore = PersistedEventStore(args.datadir)
+    else:
+        logger.warn("Using InMemoryEventStore. Events are not persisted."
+                    " See --datadir parameter for further info.")
+        eventstore = InMemoryEventStore()
 
     with zmq_context_context(3) as context, \
             zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
@@ -285,6 +649,11 @@ def main(argv=None, exit=True):
     parser.add_argument('--exit-codeword', metavar="MSG", dest="exit_message",
                         help="An incoming message that makes the logbook quit."
                              " Used for testing.")
+    parser.add_argument('--datadir', '-D', metavar="DIR",
+                        help="The directory where events will be persisted."
+                             " Will be created if non-existent. Without this"
+                             " parameter, events will be stored in-memory"
+                             " only.")
 
     incoming_group = parser.add_argument_group(
         title='Incoming event endpoints',

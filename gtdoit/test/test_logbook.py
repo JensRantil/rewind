@@ -4,6 +4,9 @@ import threading
 import time
 import uuid
 import random
+import tempfile
+import os
+import shutil
 
 import zmq
 
@@ -12,11 +15,20 @@ import gtdoit.messages.events_pb2 as events_pb2
 import gtdoit.communicators as communicators
 
 
-class TestInMemoryEventStore(unittest.TestCase):
-    def setUp(self):
+class _TestEventStore(unittest.TestCase):
+    """Test a generic event store.
+
+    This class is abstract and should be subclassed in a class that defines a
+    setUp(self) class function.
+    """
+    def _populate_store(self):
+        """Helper method to populate the store.
+
+        The keys and values that were put in the store are saved to self.keys
+        and self.vals.
+        """
         self.keys = [str(i) for i in range(10)]
         self.vals = [str(i+30) for i in range(10)]
-        self.store = gtdoit.logbook.InMemoryEventStore()
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
@@ -40,6 +52,95 @@ class TestInMemoryEventStore(unittest.TestCase):
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
         self.assertEqual(list(result), self.vals[2:-1])
 
+
+class TestPersistedEventStore(_TestEventStore):
+    """Test `PersistedEventStore`."""
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp(prefix='test_logbook',
+                                        suffix='persisted_event_store')
+        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir)
+        self._populate_store()
+
+    def tearDown(self):
+        self.store.close()
+        shutil.rmtree(self.tempdir)
+
+    def testReopening(self):
+        events_before_reload = self.store.get_events()
+        self.store.close()
+        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir)
+        events_after_reload = self.store.get_events()
+        self.assertEqual(events_before_reload, events_after_reload)
+
+
+class TestLogEventStore(_TestEventStore):
+    def setUp(self):
+        self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
+                                                    suffix='.log',
+                                                    delete=False)
+        self.tempfile.close() # We are not to modify it directly
+        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
+        
+        self._populate_store()
+    
+    def testReopenWithClose(self):
+        self.store.close()
+        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
+        self.assertEqual(len(self.keys), len(self.vals),
+                        "Keys and vals did not match in number.")
+        self.assertEqual(len(self.store.get_events(),), len(self.keys))
+
+    def testReopenWithoutClose(self):
+        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
+        self.assertEqual(len(self.keys), len(self.vals),
+                        "Keys and vals did not match in number.")
+        self.assertEqual(len(self.store.get_events(),), len(self.keys))
+
+    def tearDown(self):
+        self.store.close()
+        os.remove(self.tempfile.name)
+
+
+class TestSQLiteEventStore(_TestEventStore):
+    """Test `_SQLiteEventStore`."""
+    def setUp(self):
+        self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
+                                                    suffix='sqlite_evstore',
+                                                    delete=False)
+        self.tempfile.close() # We are not to modify it directly
+        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
+        
+        self._populate_store()
+
+    def testCount(self):
+        self.assertEqual(len(self.keys), len(self.vals),
+                        "Keys and vals did not match in number.")
+        self.assertTrue(self.store.count() == len(self.keys),
+                        "Count was incorrect.")
+
+    def testReopenWithoutClose(self):
+        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
+
+        # testCount does exactly the test we want to do. Reusing it.
+        self.testCount()
+
+    def testReopenWithClose(self):
+        self.store.close()
+        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
+
+        # testCount does exactly the test we want to do. Reusing it.
+        self.testCount()
+
+    def tearDown(self):
+        self.store.close()
+        os.remove(self.tempfile.name)
+        
+
+class TestInMemoryEventStore(_TestEventStore):
+    """Test `InMemoryEventStore`."""
+    def setUp(self):
+        self.store = gtdoit.logbook.InMemoryEventStore()
+        self._populate_store()
 
 class TestArgumentParsing(unittest.TestCase):
     """Tests command line arguments to `logbook`.
