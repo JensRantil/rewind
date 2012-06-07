@@ -258,6 +258,10 @@ class TestLogbookReplication(unittest.TestCase):
         self.assertEqual(received_event.task_created.name, 'Buy milk')
 
     def testProxyingABunchOfEvents(self):
+        """Tests that a bunch of incoming messages processed correctly.
+
+        That is, they are all being proxied and in order.
+        """
         NMESSAGES = 200
 
         # Sending
@@ -285,11 +289,6 @@ class TestLogbookReplication(unittest.TestCase):
                              '{0}'.format(i+1))
             self.assertEqual(received_event.task_created.name,
                              'Buy milk number {0}'.format(i))
-
-    def testMessageOrdering(self):
-        """Making sure that messages are received in the correct order"""
-        # TODO: Write
-        pass
 
     def tearDown(self):
         self.transmitter.close()
