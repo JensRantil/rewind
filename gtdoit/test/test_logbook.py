@@ -70,7 +70,19 @@ class TestPersistedEventStore(_TestEventStore):
         self.store.close()
         self.store = gtdoit.logbook.PersistedEventStore(self.tempdir)
         events_after_reload = self.store.get_events()
-        self.assertEqual(events_before_reload, events_after_reload)
+        self.assertEqual(list(events_before_reload), list(events_after_reload))
+
+
+class TestRotatedPersistedEventStore(TestPersistedEventStore):
+    """ Tests `PersistedEventStore`, but makes sure to rotate it a couple of
+        times before running the tests.
+    """
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp(prefix='test_logbook',
+                                        suffix='persisted_event_store')
+        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir,
+                                                        events_per_batch=5)
+        self._populate_store()
 
 
 class TestLogEventStore(_TestEventStore):
@@ -130,6 +142,11 @@ class TestSQLiteEventStore(_TestEventStore):
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
+
+    def testKeyExists(self):
+        for key in self.keys:
+            self.assertTrue(self.store.key_exists(key),
+                            "Key did not exist: {0}".format(key))
 
     def tearDown(self):
         self.store.close()

@@ -269,9 +269,6 @@ EventStore.register(_LogEventStore)
 class PersistedEventStore(EventStore):
     """Stores events persisted on disk and keeps track of their order."""
 
-    # Number of keys we remember to make the unique checks of keys.
-    EVENTS_PER_BATCH = 25000
-
     # Filename prefix for event database
     DATABASE_PREFIX = "eventdb."
 
@@ -281,12 +278,15 @@ class PersistedEventStore(EventStore):
     class IntegrityError(RuntimeError):
         pass
 
-    def __init__(self, dirpath):
+    def __init__(self, dirpath, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
         
         Parameters:
-        dirpath -- the directory where the event logs will be stored.
+        dirpath          -- the directory where the event logs will be stored.
+        events_per_batch -- number of events stored in a batch before rotating
+                            the files.
         """
+        self.events_per_batch = events_per_batch
         self.logpath = os.path.join(dirpath, 'logs')
         self.dbpath = os.path.join(dirpath, 'dbs')
 
@@ -309,19 +309,25 @@ class PersistedEventStore(EventStore):
         # TODO: Test that 'md5sum' exists
 
     def _rotate_files_if_needed(self):
-        if self.db.count() > PersistedEventStore.EVENTS_PER_BATCH:
-            self._rotate()
+        if self.db.count() > self.events_per_batch:
+            self._rotate_files()
 
     def _rotate_files(self):
+        logger.info('Rotating data files. New batch number will be: %s',
+                    self.batchno + 1)
         self._close_event_stores()
         self.batchno += 1
         self._open_event_stores()
 
+    @staticmethod
+    def _open_db(dbpath, batchno):
+        dbpath = os.path.join(dbpath, PersistedEventStore.DATABASE_PREFIX
+                                       + str(batchno))
+        return _SQLiteEventStore(dbpath)
+
     def _open_event_stores(self):
         """Prepare the backend event stores for reading and writing."""
-        dbpath = os.path.join(self.dbpath, PersistedEventStore.DATABASE_PREFIX
-                                            + str(self.batchno))
-        self.db = _SQLiteEventStore(dbpath)
+        self.db = self._open_db(self.dbpath, self.batchno)
         
         logpath = os.path.join(self.logpath, PersistedEventStore.LOG_PREFIX
                                               + str(self.batchno))
@@ -447,8 +453,62 @@ class PersistedEventStore(EventStore):
         self.log.add_event(key, event)
         self.db.add_event(key, event)
 
+    def _find_batch_containing_event(self, uuid):
+        """Find the batch number that contains a certain event.
+
+        Parameters:
+        uuid    -- the event uuid to search for.
+        returns -- a batch number, or None if not found.
+        """
+        if self.db.key_exists(uuid):
+            # Reusing already opened DB if possible
+            return self.batchno
+        else:
+            for batchno in range(self.batchno-1, -1, -1):
+                # Iterating backwards here because we are more likely to find
+                # the event in an later archive, than earlier. Also, later files
+                # tend to be cached by OS more.
+                db = self._open_db(self.dbpath, batchno)
+                with contextlib.closing(db):
+                    if db.key_exists(uuid):
+                        return batchno
+        return None
+
     def get_events(self, from_=None, to=None):
-        return self.db.get_events(from_=from_, to=to)
+        """Query events.
+
+        It also queries older event archives until it finds the event UUIDs
+        necessary.
+        """
+        if from_:
+            frombatchno = self._find_batch_containing_event(from_)
+            if frombatchno is None:
+                raise EventKeyDoesNotExistError('from_={0}'.format(from_))
+        else:
+            frombatchno = 0
+        if to:
+            tobatchno = self._find_batch_containing_event(to)
+            if tobatchno is None:
+                raise EventKeyDoesNotExistError('to={0}'.format(to))
+        else:
+            tobatchno = self.batchno
+
+        batchno_range = range(frombatchno, tobatchno+1)
+        nbatches = len(batchno_range)
+        if nbatches==1:
+            event_ranges = [(from_, to)]
+        else:
+            event_ranges = itertools.chain([(from_, None)],
+                                           itertools.repeat((None,None),
+                                                            nbatches-2),
+                                           [(None, to)])
+        for batchno, (from_in_batch, to_in_batch) in zip(batchno_range,
+                                                         event_ranges):
+            db = self._open_db(self.dbpath, batchno)
+            with contextlib.closing(db):
+                for event in db.get_events(from_in_batch, to_in_batch):
+                    yield event
+
 
     def key_exists(self, key):
         """Checks for event key existence.
