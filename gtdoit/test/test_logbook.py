@@ -346,7 +346,6 @@ class TestLogbookQuerying(unittest.TestCase):
             new_event.taskid = id
             new_event.ownerid = random.choice(users)
             new_event.name = 'Buy flowers to Julie'
-            # TODO: This is too tedious. Encapsulate using a class.
             event = events_pb2.Event(type=events_pb2.Event.TASK_CREATED,
                                      task_created=new_event)
             self.sent.append(event)
