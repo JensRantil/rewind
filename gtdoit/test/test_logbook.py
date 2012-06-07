@@ -52,6 +52,11 @@ class _TestEventStore(unittest.TestCase):
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
         self.assertEqual(list(result), self.vals[2:-1])
 
+    def testKeyExists(self):
+        for key in self.keys:
+            self.assertTrue(self.store.key_exists(key),
+                            "Key did not exist: {0}".format(key))
+
 
 class TestPersistedEventStore(_TestEventStore):
     """Test `PersistedEventStore`."""
@@ -78,11 +83,37 @@ class TestRotatedPersistedEventStore(TestPersistedEventStore):
         times before running the tests.
     """
     def setUp(self):
+        """Called before each test.
+
+        Deliberately overriding `TestPersistedEventStore.setUp()`.
+        """
+        N = 5
+        self.N = N
         self.tempdir = tempfile.mkdtemp(prefix='test_logbook',
                                         suffix='persisted_event_store')
         self.store = gtdoit.logbook.PersistedEventStore(self.tempdir,
-                                                        events_per_batch=5)
+                                                        events_per_batch=N)
         self._populate_store()
+
+    def testKeyExists(self):
+        """Test that key_exists only checks against the last event batch."""
+        # Number of events in last batch
+        nlastbatch = len(self.keys) % self.N
+        if nlastbatch == 0:
+            nlastbatch = self.N
+        # Number of events in the other batches
+        nprevbatches = len(self.keys) - nlastbatch
+        self.assertTrue(nlastbatch > 0,
+                        "Wanted to have some events in the last batch")
+        self.assertTrue(nprevbatches > 0,
+                        "Expected previous batches")
+
+        for key in self.keys[nlastbatch:]:
+            self.assertTrue(self.store.key_exists(key),
+                            'Key did not exist: %s' % key)
+        for key in self.keys[:nprevbatches]:
+            self.assertFalse(self.store.key_exists(key),
+                             "Key existed when it shouldn't: %s" % key)
 
 
 class TestLogEventStore(_TestEventStore):
@@ -142,11 +173,6 @@ class TestSQLiteEventStore(_TestEventStore):
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
-
-    def testKeyExists(self):
-        for key in self.keys:
-            self.assertTrue(self.store.key_exists(key),
-                            "Key did not exist: {0}".format(key))
 
     def tearDown(self):
         self.store.close()

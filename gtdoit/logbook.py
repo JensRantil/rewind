@@ -158,7 +158,14 @@ class _SQLiteEventStore(EventStore):
         with contextlib.closing(cursor):
             cursor.execute('SELECT COUNT(*) FROM events WHERE uuid=?', (key,))
             res = cursor.fetchone()
-            return res[0]
+            count = res[0]
+        if count == 0:
+            return False
+        elif count == 1:
+            return True
+        else:
+            raise RuntimeException('There multiple event instances of: %s' %
+                                   key)
 
     def count(self):
         """Return the number of events in the db."""
@@ -309,7 +316,11 @@ class PersistedEventStore(EventStore):
         # TODO: Test that 'md5sum' exists
 
     def _rotate_files_if_needed(self):
-        if self.db.count() > self.events_per_batch:
+        dbcount = self.db.count()
+        if dbcount >= self.events_per_batch:
+            if logger.isEnabledFor(logging.DEBUG):
+                msg = 'Rotating because number of events(={0}) exceeds {1}.'
+                logger.debug(msg.format(dbcount, self.events_per_batch))
             self._rotate_files()
 
     def _rotate_files(self):
