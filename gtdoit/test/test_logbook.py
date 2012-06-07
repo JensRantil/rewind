@@ -27,8 +27,15 @@ class _TestEventStore(unittest.TestCase):
         The keys and values that were put in the store are saved to self.keys
         and self.vals.
         """
-        self.keys = [str(i) for i in range(10)]
-        self.vals = [str(i+30) for i in range(10)]
+        # Randomizing here mostly because rotation will behave differently
+        # depending on the number of generated events.
+        N = random.randint(10, 29)
+
+        # Important to print this (for test reproducability) since N is
+        # random.
+        print "Populating with {0} events...".format(N)
+        self.keys = [str(i) for i in range(N)]
+        self.vals = [str(i+30) for i in range(N)]
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
@@ -108,7 +115,11 @@ class TestRotatedPersistedEventStore(TestPersistedEventStore):
         self.assertTrue(nprevbatches > 0,
                         "Expected previous batches")
 
-        for key in self.keys[nlastbatch:]:
+        # Can be used for debugging of the contents of a log file.
+        #to_execute = 'head -n 100 {0}/logs/*'.format(self.tempdir)
+        #os.system(to_execute)
+
+        for key in self.keys[-nlastbatch:]:
             self.assertTrue(self.store.key_exists(key),
                             'Key did not exist: %s' % key)
         for key in self.keys[:nprevbatches]:
