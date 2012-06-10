@@ -7,6 +7,7 @@ import random
 import tempfile
 import os
 import shutil
+import itertools
 
 import zmq
 
@@ -101,6 +102,21 @@ class TestRotatedPersistedEventStore(TestPersistedEventStore):
         self.store = gtdoit.logbook.PersistedEventStore(self.tempdir,
                                                         events_per_batch=N)
         self._populate_store()
+
+    def testReopening(self):
+        """Testing reopening and appending a couple of more events."""
+        self.store.close()
+        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir,
+                                                        events_per_batch=self.N)
+
+        N_MORE = 20
+        more_keys = ['a{0}'.format(i) for i in range(N_MORE)]
+        more_vals = ['b{0}'.format(i) for i in range(N_MORE)]
+        for k,v in zip(more_keys, more_vals):
+            self.store.add_event(k, v)
+        events = list(self.store.get_events())
+        events_expected = list(itertools.chain(self.vals, more_vals))
+        self.assertEqual(events, events_expected)
 
     def testKeyExists(self):
         """Test that key_exists only checks against the last event batch."""
