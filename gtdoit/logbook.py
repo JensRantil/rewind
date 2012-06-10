@@ -289,7 +289,7 @@ class PersistedEventStore(EventStore):
         """Construct a persisted event store that is stored on disk.
         
         Parameters:
-        dirpath          -- the directory where the event logs will be stored.
+        dirpath          -- the directory where the events will be stored.
         events_per_batch -- number of events stored in a batch before rotating
                             the files.
         """
