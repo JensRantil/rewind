@@ -61,15 +61,6 @@ class EventStore(object):
 class InMemoryEventStore(EventStore):
     """Stores events in-memory and keeps track of their order."""
     def __init__(self):
-        self._reset()
-
-    def _reset(self):
-        """Reset the event storage.
-
-        Protected/private because it should only be called from tests.
-
-        Calling this method makes it thread unsafe.
-        """
         self.keys = []
         self.events = {}
 
