@@ -135,10 +135,12 @@ class TestPersistedEventStore(_TestEventStore):
     def testKeyExists(self):
         evs_per_batch = TestPersistedEventStore.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
-        keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
-        for key in keys_in_last_batch:
-            self.assertTrue(self.store.key_exists(key),
-                            "Key did not exist: {0}".format(key))
+        if nkeys_in_last_batch > 0:
+            # No reasons to test if there were no events written to this batch
+            keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
+            for key in keys_in_last_batch:
+                self.assertTrue(self.store.key_exists(key),
+                                "Key did not exist: {0}".format(key))
 
 
 class TestRotatedEventStorage(_TestEventStore):
