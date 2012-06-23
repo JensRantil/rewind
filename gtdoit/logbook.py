@@ -118,7 +118,6 @@ class _SQLiteEventStore(EventStore):
                 event BLOB
             );
         ''');
-        # TODO: Define indices
 
     def add_event(self, key, event):
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
