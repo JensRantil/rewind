@@ -404,10 +404,11 @@ class RotatedEventStore(EventStore):
 EventStore.register(RotatedEventStore)
 
 
-class PersistedEventStore(EventStore):
-    """Wraps multiple event stores and makes sure they wrap at the same time.
+class RotationEventStore(EventStore):
+    """Wraps multiple `RotatedEventStore` event stores.
     
-    # TODO: Rename. It has a different purpose.
+    Rotation is done at the same time for all event stores to make sure they are
+    kept in sync.
     """
     class IntegrityError(RuntimeError):
         pass
@@ -456,12 +457,12 @@ class PersistedEventStore(EventStore):
 
         TODO: Test.
         """
-        PersistedEventStore._test_log_filename_format(logpath)
-        PersistedEventStore._test_db_filename_format(dbpath)
+        RotationEventStore._test_log_filename_format(logpath)
+        RotationEventStore._test_db_filename_format(dbpath)
 
         # Simply shortened constants
-        dbprefix = PersistedEventStore.DATABASE_PREFIX
-        logprefix = PersistedEventStore.LOG_PREFIX
+        dbprefix = RotationEventStore.DATABASE_PREFIX
+        logprefix = RotationEventStore.LOG_PREFIX
 
         dbfiles = os.listdir(dbpath)
         logfiles = os.listdir(logpath)
@@ -480,16 +481,16 @@ class PersistedEventStore(EventStore):
             if not logfile_exists:
                 logger.warn("Integrity issue. Missing file: %s", logfile)
             if not dbfile_exists:
-                PersistedEventStore.IntegrityError("Missing file: %s",
+                RotationEventStore.IntegrityError("Missing file: %s",
                                                    dbfile)
             if not logfile_exists:
-                PersistedEventStore.IntegrityError("Missing file: %s",
+                RotationEventStore.IntegrityError("Missing file: %s",
                                                    logfile)
             if not os.path.isfile(dbfile):
-                PersistedEventStore.IntegrityError("Not regular file: %s",
+                RotationEventStore.IntegrityError("Not regular file: %s",
                                                    dbfile)
             if not os.path.isfile(logfile):
-                PersistedEventStore.IntegrityError("Not regular file: %s",
+                RotationEventStore.IntegrityError("Not regular file: %s",
                                                    logfile)
 
             # TODO: Recreate database from log if it seems corrupt.
@@ -524,7 +525,7 @@ class PersistedEventStore(EventStore):
     def get_events(self, from_=None, to=None):
         return self.stores[0].get_events(from_, to)
 
-EventStore.register(PersistedEventStore)
+EventStore.register(RotationEventStore)
 
 
 class IdGenerator:
@@ -667,7 +668,7 @@ def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
 def run(args):
     """Actually execute the program."""
     if args.datadir:
-        eventstore = PersistedEventStore(args.datadir)
+        eventstore = RotationEventStore(args.datadir)
     else:
         logger.warn("Using InMemoryEventStore. Events are not persisted."
                     " See --datadir parameter for further info.")

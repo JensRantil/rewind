@@ -67,8 +67,8 @@ class _TestEventStore(unittest.TestCase):
                             "Key did not exist: {0}".format(key))
 
 
-class TestPersistedEventStore(_TestEventStore):
-    """Test `PersistedEventStore`."""
+class TestRotationEventStore(_TestEventStore):
+    """Test `RotationEventStore`."""
 
     # Number of events per batch
     EVS_PER_BATCH = 5
@@ -114,8 +114,8 @@ class TestPersistedEventStore(_TestEventStore):
         self._populate_store()
 
     def _openStore(self):
-        evs_per_batch = TestPersistedEventStore.EVS_PER_BATCH
-        store = gtdoit.logbook.PersistedEventStore(evs_per_batch)
+        evs_per_batch = TestRotationEventStore.EVS_PER_BATCH
+        store = gtdoit.logbook.RotationEventStore(evs_per_batch)
         for rotated_memstore in self.rotated_memstores:
             store.add_rotated_store(rotated_memstore)
         self.store = store
@@ -133,7 +133,7 @@ class TestPersistedEventStore(_TestEventStore):
         self.assertEqual(list(events_before_reload), list(events_after_reload))
         
     def testKeyExists(self):
-        evs_per_batch = TestPersistedEventStore.EVS_PER_BATCH
+        evs_per_batch = TestRotationEventStore.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
         if nkeys_in_last_batch > 0:
             # No reasons to test if there were no events written to this batch
