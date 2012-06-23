@@ -66,18 +66,19 @@ class InMemoryEventStore(EventStore):
 
     def add_event(self, key, event):
         if key in self.keys or key in self.events:
-            raise EventKeyAlreadyExistError("The key already existed: %s" % key)
+            raise EventStore.EventKeyAlreadyExistError(
+                "The key already existed: %s" % key)
         self.keys.append(key)
         # Important no exceptions happen between these lines!
         self.events[key] = event
 
     def get_events(self, from_=None, to=None):
         if from_ and (from_ not in self.keys or from_ not in self.events):
-            raise EventKeyDoesNotExistError("Could not find the from_ key: %s" %
-                                            from_)
+            raise EventStore.EventKeyDoesNotExistError(
+                "Could not find the from_ key: %s" % from_)
         if to and (to not in self.keys or to not in self.events):
-            raise EventKeyDoesNotExistError("Could not find the from_ key: %s" %
-                                            to)
+            raise EventStore.EventKeyDoesNotExistError(
+                "Could not find the from_ key: %s" % to)
         
         # +1 here because we have already seen the event we are asking for
         fromindex = self.keys.index(from_)+1 if from_ else 0
