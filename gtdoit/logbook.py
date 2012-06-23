@@ -57,6 +57,13 @@ class EventStore(object):
     def key_exists(self, key):
         pass
 
+    def close(self):
+        """Close the store.
+
+        May be overridden if necessary.
+        """
+        pass
+
 
 class InMemoryEventStore(EventStore):
     """Stores events in-memory and keeps track of their order."""
@@ -265,118 +272,189 @@ class _LogEventStore(EventStore):
 EventStore.register(_LogEventStore)
 
 
+class RotatedEventStore(EventStore):
+    """An event store that stores events in rotated files."""
+    def __init__(self, estore_factory, dirpath, prefix):
+        # These needs to be specified before calling self._determine_batchno()
+        self.dirpath = dirpath
+        self.prefix = prefix
+        self.logger = logger.getChild(prefix)
+
+        if not os.path.exists(dirpath):
+            self.logger.info('Creating rotated eventstore directory: %s',
+                             dirpath)
+            os.mkdir(dirpath)
+            batchno = 0
+        else:
+            batchno = self._determine_batchno()
+
+        self.estore_factory = estore_factory
+        self.batchno = batchno
+
+        self.estore = self._open_event_store()
+
+    def _determine_batchno(self):
+        dirpath = self.dirpath
+        prefix = self.prefix
+        files = os.listdir(dirpath)
+
+        identified_files = [fname for fname in files
+                            if fname.startswith(prefix+'.')]
+        not_identified_files = [fname for fname in files
+                                if not fname.startswith(prefix+'.')]
+        if not_identified_files:
+            self.logger.warn("The following files could not be identified"
+                             "(lacking prefix '%s'):", prefix)
+            for not_identified_file in not_identified_files:
+                logger.warn(' * %s', not_identified_file)
+
+        if files:
+            nprefix = len(prefix) + 1
+            batchnos = [file[nprefix:] for file in files]
+            last_batch = max([int(batchno) for batchno in batchnos])
+        else:
+            last_batch = 0
+
+        return last_batch
+
+    def _open_event_store(self, batchno=None):
+        batchno = self.batchno if batchno is None else batchno
+        fname = self._construct_filename(batchno)
+        return self.estore_factory(fname)
+
+    def _construct_filename(self, batchno):
+        """Construct a filename for a database.
+
+        Parameters:
+        batchno -- batch number for the rotated database.
+        """
+        return os.path.join(self.dirpath,
+                            "{0}.{1}".format(self.prefix, batchno))
+
+    def rotate(self):
+        self.logger.info('Rotating data files. New batch number will be: %s',
+                    self.batchno + 1)
+        self.estore.close()
+        self.estore = None
+        self.batchno += 1
+        self.estore = self._open_event_store()
+
+    def add_event(self, key, event):
+        self.estore.add_event(key, event)
+
+    def _find_batch_containing_event(self, uuid):
+        """Find the batch number that contains a certain event.
+
+        Parameters:
+        uuid    -- the event uuid to search for.
+        returns -- a batch number, or None if not found.
+        """
+        if self.estore.key_exists(uuid):
+            # Reusing already opened DB if possible
+            return self.batchno
+        else:
+            for batchno in range(self.batchno-1, -1, -1):
+                # Iterating backwards here because we are more likely to find
+                # the event in an later archive, than earlier.
+                db = self._open_event_store(batchno)
+                with contextlib.closing(db):
+                    if db.key_exists(uuid):
+                        return batchno
+        return None
+
+    def get_events(self, from_=None, to=None):
+        """Query events.
+
+        It also queries older event archives until it finds the event UUIDs
+        necessary.
+        """
+        if from_:
+            frombatchno = self._find_batch_containing_event(from_)
+            if frombatchno is None:
+                raise EventKeyDoesNotExistError('from_={0}'.format(from_))
+        else:
+            frombatchno = 0
+        if to:
+            tobatchno = self._find_batch_containing_event(to)
+            if tobatchno is None:
+                raise EventStore.EventKeyDoesNotExistError('to={0}'.format(to))
+        else:
+            tobatchno = self.batchno
+
+        batchno_range = range(frombatchno, tobatchno+1)
+        nbatches = len(batchno_range)
+        if nbatches==1:
+            event_ranges = [(from_, to)]
+        else:
+            event_ranges = itertools.chain([(from_, None)],
+                                           itertools.repeat((None,None),
+                                                            nbatches-2),
+                                           [(None, to)])
+        for batchno, (from_in_batch, to_in_batch) in zip(batchno_range,
+                                                         event_ranges):
+            estore = self._open_event_store(batchno)
+            with contextlib.closing(estore):
+                for event in estore.get_events(from_in_batch, to_in_batch):
+                    yield event
+
+    def key_exists(self, key):
+        """Checks whether the key exists in the current event store."""
+        return self.estore.key_exists(key)
+
+EventStore.register(RotatedEventStore)
+
+
 class PersistedEventStore(EventStore):
-    """Stores events persisted on disk and keeps track of their order."""
-
-    # Filename prefix for event database
-    DATABASE_PREFIX = "eventdb."
-
-    # Filename prefix for event log
-    LOG_PREFIX = "eventlog."
-
+    """Wraps multiple event stores and makes sure they wrap at the same time.
+    
+    # TODO: Rename. It has a different purpose.
+    """
     class IntegrityError(RuntimeError):
         pass
 
-    def __init__(self, dirpath, events_per_batch=25000):
+    def __init__(self, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
         
         Parameters:
-        dirpath          -- the directory where the events will be stored.
         events_per_batch -- number of events stored in a batch before rotating
                             the files.
         """
         self.events_per_batch = events_per_batch
-        self.logpath = os.path.join(dirpath, 'logs')
-        self.dbpath = os.path.join(dirpath, 'dbs')
-
-        if not os.path.exists(dirpath):
-            logger.info('Creating eventstore directory: %s', dirpath)
-            os.mkdir(dirpath)
-        if not os.path.exists(self.logpath):
-            logger.info('Creating event log directory: %s', self.logpath)
-            os.mkdir(self.logpath)
-        if not os.path.exists(self.dbpath):
-            logger.info('Creating event database directory: %s', self.dbpath)
-            os.mkdir(self.dbpath)
-
-        PersistedEventStore._check_filesystem_integrity(self.logpath,
-                                                       self.dbpath)
-
-        self.batchno = self._get_current_batchno(self.logpath, self.dbpath)
-        self._open_event_stores()
+        self.count = 0
+        self.stores = []
 
         # TODO: Test that 'md5sum' exists
 
+    def add_rotated_store(self, rotated_store):
+        self.stores.append(rotated_store)
+
     def _rotate_files_if_needed(self):
-        dbcount = self.db.count()
-        if dbcount >= self.events_per_batch:
+        if self.count >= self.events_per_batch:
             if logger.isEnabledFor(logging.DEBUG):
-                msg = 'Rotating because number of events(={0}) exceeds {1}.'
-                logger.debug(msg.format(dbcount, self.events_per_batch))
+                msg = 'Rotating because number of events(=%s) exceeds %s.'
+                logger.debug(msg, self.count, self.events_per_batch)
             self._rotate_files()
 
     def _rotate_files(self):
-        logger.info('Rotating data files. New batch number will be: %s',
-                    self.batchno + 1)
-        self._close_event_stores()
-        self.batchno += 1
-        self._open_event_stores()
-
-    @staticmethod
-    def _open_db(dbpath, batchno):
-        dbpath = os.path.join(dbpath, PersistedEventStore.DATABASE_PREFIX
-                                       + str(batchno))
-        return _SQLiteEventStore(dbpath)
-
-    def _open_event_stores(self):
-        """Prepare the backend event stores for reading and writing."""
-        self.db = self._open_db(self.dbpath, self.batchno)
-        
-        logpath = os.path.join(self.logpath, PersistedEventStore.LOG_PREFIX
-                                              + str(self.batchno))
-        self.log = _LogEventStore(logpath)
+        for estore in self.stores:
+            estore.rotate()
+        self.count = 0
 
     def _close_event_stores(self):
         """Signal that we are done with the backend event stores."""
-        self.db.close()
-        self.db = None
-        self.log.close()
-        self.log = None
+        for store in self.stores:
+            store.close()
+        self.stores = []
 
     def close(self):
         self._close_event_stores()
 
-    @staticmethod
-    def _get_current_batchno(logpath, dbpath):
-        # Simply shortened constants
-        dbprefix = PersistedEventStore.DATABASE_PREFIX
-        logprefix = PersistedEventStore.LOG_PREFIX
-
-        dbfiles = os.listdir(dbpath)
-        logfiles = os.listdir(logpath)
-
-        if dbfiles:
-            db_batchnos = [dbfile[len(dbprefix):] for dbfile in dbfiles]
-            last_db_batch = max([int(batchno) for batchno in db_batchnos])
-        else:
-            last_db_batch = 0
-        if logfiles:
-            log_batchnos = [logfile[len(logprefix):] for logfile in logfiles]
-            last_log_batch = max([int(batchno) for batchno in log_batchnos])
-        else:
-            last_log_batch = 0
-
-        if last_db_batch != last_log_batch:
-            raise IntegrityError("Log and database had not same last batch"
-                                 " number.")
-
-        return last_db_batch
-
-    @staticmethod
-    def _check_filesystem_integrity(logpath, dbpath):
+    def check_integrity(self):
         """Check the filesystem integrity of the files.
         
         Static class function to minimize state.
+
+        TODO: Test.
         """
         PersistedEventStore._test_log_filename_format(logpath)
         PersistedEventStore._test_db_filename_format(dbpath)
@@ -419,28 +497,6 @@ class PersistedEventStore(EventStore):
             
         # TODO: Write code that verifies MD5 for logs
 
-    @staticmethod
-    def _test_filename_format(path, prefix, ignore=[]):
-        files = os.listdir(path)
-        for filename in files:
-            if not filename.startswith(prefix) and filename not in ignore:
-                raise PersistedEventStore.IntegrityError('Incorrect filename'
-                                                         ' format: %s',
-                                                         filename)
-
-    @staticmethod
-    def _test_log_filename_format(logpath):
-        """Test the format of the log filename."""
-        prefix = PersistedEventStore.LOG_PREFIX
-        # TODO: Add MD5-file as an exception
-        PersistedEventStore._test_filename_format(logpath, prefix)
-
-    @staticmethod
-    def _test_db_filename_format(dbpath):
-        """Test the format of the database filename."""
-        prefix = PersistedEventStore.DATABASE_PREFIX
-        PersistedEventStore._test_filename_format(dbpath, prefix)
-
     def add_event(self, key, event):
         if self.key_exists(key):
             # This check might actually also be done further up in the chain
@@ -453,65 +509,9 @@ class PersistedEventStore(EventStore):
         # Since I guess _LogEventStore is less mature codewise than
         # _SQLiteEventStore I am writing to that log file first. If something
         # fails we are not writing to _SQLiteEventStore.
-        self.log.add_event(key, event)
-        self.db.add_event(key, event)
-
-    def _find_batch_containing_event(self, uuid):
-        """Find the batch number that contains a certain event.
-
-        Parameters:
-        uuid    -- the event uuid to search for.
-        returns -- a batch number, or None if not found.
-        """
-        if self.db.key_exists(uuid):
-            # Reusing already opened DB if possible
-            return self.batchno
-        else:
-            for batchno in range(self.batchno-1, -1, -1):
-                # Iterating backwards here because we are more likely to find
-                # the event in an later archive, than earlier. Also, later files
-                # tend to be cached by OS more.
-                db = self._open_db(self.dbpath, batchno)
-                with contextlib.closing(db):
-                    if db.key_exists(uuid):
-                        return batchno
-        return None
-
-    def get_events(self, from_=None, to=None):
-        """Query events.
-
-        It also queries older event archives until it finds the event UUIDs
-        necessary.
-        """
-        if from_:
-            frombatchno = self._find_batch_containing_event(from_)
-            if frombatchno is None:
-                raise EventKeyDoesNotExistError('from_={0}'.format(from_))
-        else:
-            frombatchno = 0
-        if to:
-            tobatchno = self._find_batch_containing_event(to)
-            if tobatchno is None:
-                raise EventKeyDoesNotExistError('to={0}'.format(to))
-        else:
-            tobatchno = self.batchno
-
-        batchno_range = range(frombatchno, tobatchno+1)
-        nbatches = len(batchno_range)
-        if nbatches==1:
-            event_ranges = [(from_, to)]
-        else:
-            event_ranges = itertools.chain([(from_, None)],
-                                           itertools.repeat((None,None),
-                                                            nbatches-2),
-                                           [(None, to)])
-        for batchno, (from_in_batch, to_in_batch) in zip(batchno_range,
-                                                         event_ranges):
-            db = self._open_db(self.dbpath, batchno)
-            with contextlib.closing(db):
-                for event in db.get_events(from_in_batch, to_in_batch):
-                    yield event
-
+        for store in self.stores:
+            store.add_event(key, event)
+        self.count += 1
 
     def key_exists(self, key):
         """Checks for event key existence.
@@ -519,7 +519,10 @@ class PersistedEventStore(EventStore):
         This check is actually only done to the last batch to make is really
         fast. Therefor, it's mostly to make sure we have a sane UUID generator.
         """
-        return self.db.key_exists(key)
+        return self.stores[0].key_exists(key)
+
+    def get_events(self, from_=None, to=None):
+        return self.stores[0].get_events(from_, to)
 
 EventStore.register(PersistedEventStore)
 

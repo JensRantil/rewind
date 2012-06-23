@@ -10,6 +10,7 @@ import shutil
 import itertools
 
 import zmq
+import mock
 
 import gtdoit.logbook
 import gtdoit.messages.events_pb2 as events_pb2
@@ -68,79 +69,175 @@ class _TestEventStore(unittest.TestCase):
 
 class TestPersistedEventStore(_TestEventStore):
     """Test `PersistedEventStore`."""
+
+    # Number of events per batch
+    EVS_PER_BATCH = 5
+
     def setUp(self):
-        self.tempdir = tempfile.mkdtemp(prefix='test_logbook',
-                                        suffix='persisted_event_store')
-        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir)
+        rotated_estore_params = [
+            {
+                'dirpath': '/notused/db',
+                'prefix': 'logdb',
+            },
+            {
+                'dirpath': '/notused/log',
+                'prefix': 'appendlog',
+            },
+        ]
+
+        memstores = []
+        rotated_memstores = []
+        files_created = {}
+        for params in rotated_estore_params:
+            def memstore_factory_side_effect(fname):
+                if fname not in files_created:
+                    memstore = gtdoit.logbook.InMemoryEventStore()
+                    memstore.close = mock.Mock()
+                    memstores.append(memstore)
+                    files_created[fname] = memstore
+                return files_created[fname]
+            memstore_factory = mock.Mock()
+            memstore_factory.side_effect = memstore_factory_side_effect
+            with mock.patch('os.mkdir') as mkdir_mock:
+                rotated_memstore = \
+                        gtdoit.logbook.RotatedEventStore(memstore_factory,
+                                                         **params)
+                mkdir_mock.assert_called_once()
+
+            rotated_memstores.append(rotated_memstore)
+
+        self.memstores = memstores
+        self.rotated_memstores = rotated_memstores
+        self.files_created = files_created
+
+        self._openStore()
         self._populate_store()
+
+    def _openStore(self):
+        evs_per_batch = TestPersistedEventStore.EVS_PER_BATCH
+        store = gtdoit.logbook.PersistedEventStore(evs_per_batch)
+        for rotated_memstore in self.rotated_memstores:
+            store.add_rotated_store(rotated_memstore)
+        self.store = store
 
     def tearDown(self):
         self.store.close()
-        shutil.rmtree(self.tempdir)
+        for memstore in self.memstores:
+            memstore.close.assert_called_once()
 
     def testReopening(self):
         events_before_reload = self.store.get_events()
         self.store.close()
-        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir)
+        self._openStore()
         events_after_reload = self.store.get_events()
         self.assertEqual(list(events_before_reload), list(events_after_reload))
+        
+    def testKeyExists(self):
+        evs_per_batch = TestPersistedEventStore.EVS_PER_BATCH
+        nkeys_in_last_batch = len(self.keys) % evs_per_batch
+        keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
+        for key in keys_in_last_batch:
+            self.assertTrue(self.store.key_exists(key),
+                            "Key did not exist: {0}".format(key))
 
 
-class TestRotatedPersistedEventStore(TestPersistedEventStore):
-    """ Tests `PersistedEventStore`, but makes sure to rotate it a couple of
-        times before running the tests.
-    """
+class TestRotatedEventStorage(_TestEventStore):
     def setUp(self):
-        """Called before each test.
+        """Setup method before each test.
 
-        Deliberately overriding `TestPersistedEventStore.setUp()`.
+        TODO: Use loops instead of suffixed variables.
         """
-        N = 5
-        self.N = N
-        self.tempdir = tempfile.mkdtemp(prefix='test_logbook',
-                                        suffix='persisted_event_store')
-        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir,
-                                                        events_per_batch=N)
-        self._populate_store()
+        N = 20
 
-    def testReopening(self):
-        """Testing reopening and appending a couple of more events."""
-        self.store.close()
-        self.store = gtdoit.logbook.PersistedEventStore(self.tempdir,
-                                                        events_per_batch=self.N)
+        mstore1 = gtdoit.logbook.InMemoryEventStore()
+        mstore1.close = mock.MagicMock() # Needed for assertions
+        keys1 = [str(i) for i in range(N)]
+        vals1 = [str(i+30) for i in range(N)]
+        for key, val in zip(keys1, vals1):
+            mstore1.add_event(key, val)
 
-        N_MORE = 20
-        more_keys = ['a{0}'.format(i) for i in range(N_MORE)]
-        more_vals = ['b{0}'.format(i) for i in range(N_MORE)]
-        for k,v in zip(more_keys, more_vals):
-            self.store.add_event(k, v)
-        events = list(self.store.get_events())
-        events_expected = list(itertools.chain(self.vals, more_vals))
-        self.assertEqual(events, events_expected)
+        mstore2 = gtdoit.logbook.InMemoryEventStore()
+        mstore2.close = mock.MagicMock() # Needed for assertions
+        keys2 = [str(i+N) for i in range(N)]
+        vals2 = [str(i+30+N) for i in range(N)]
+        for key, val in zip(keys2, vals2):
+            mstore2.add_event(key, val)
+
+        mstore3 = gtdoit.logbook.InMemoryEventStore()
+        mstore3.close = mock.MagicMock() # Needed for assertions
+        keys3 = ['one', 'two', 'three']
+        vals3 = ['four', 'five', 'six']
+        for key, val in zip(keys3, vals3):
+            mstore3.add_event(key, val)
+
+        mstore4 = gtdoit.logbook.InMemoryEventStore()
+
+        def es_factory(fname):
+            """Pretends to open an event store from a filename."""
+            retvals = {
+                '/random_dir/eventdb.0': mstore1,
+                '/random_dir/eventdb.1': mstore2,
+                '/random_dir/eventdb.2': mstore3,
+                '/random_dir/eventdb.3': mstore4,
+            }
+            return retvals[fname]
+        estore_factory = mock.Mock(side_effect=es_factory)
+
+        with mock.patch('os.path.exists') as exists_mock, \
+                mock.patch('os.listdir') as listdir_mock:
+            exists_mock.return_value = True
+            listdir_mock.return_value = ['eventdb.0', 'eventdb.1', 'eventdb.2']
+            store = gtdoit.logbook.RotatedEventStore(estore_factory,
+                                                     '/random_dir',
+                                                     'eventdb')
+            exists_mock.assert_called_with('/random_dir')
+            self.assertTrue(listdir_mock.call_count > 0)
+
+        estore_factory.assert_called_once_with('/random_dir/eventdb.2')
+
+        self.assertEqual(store.batchno, 2)
+
+        # Test attributes
+        self.store = store
+        self.keys = keys1 + keys2 + keys3
+        self.vals = vals1 + vals2 + vals3
+        self.keys3, self.vals3 = keys3, vals3
+        self.estore_factory = estore_factory
+        self.mstore1 = mstore1
+        self.mstore2 = mstore2
+        self.mstore3 = mstore3
+        self.mstore4 = mstore4
+
+    def testRotation(self):
+        self.mstore2.close.reset_mock()
+        self.estore_factory.reset_mock()
+
+        self.store.rotate()
+
+        # Making sure we closed and opened the right event store
+        self.mstore3.close.assert_called_once_with()
+        self.estore_factory.assert_called_once_with('/random_dir/eventdb.3')
+
+    def testWritingAfterRotation(self):
+        """Test writing to the rotated event store after rotation."""
+        self.store.rotate()
+
+        self.assertFalse(self.store.key_exists('mykey'))
+        self.store.add_event('mykey', 'myvalue')
+        self.assertTrue(self.store.key_exists('mykey'),
+                        "The event was expected to have been written.")
+        self.assertTrue(self.mstore4.key_exists('mykey'),
+                        "The event seem to have been written to wrong estore.")
 
     def testKeyExists(self):
-        """Test that key_exists only checks against the last event batch."""
-        # Number of events in last batch
-        nlastbatch = len(self.keys) % self.N
-        if nlastbatch == 0:
-            nlastbatch = self.N
-        # Number of events in the other batches
-        nprevbatches = len(self.keys) - nlastbatch
-        self.assertTrue(nlastbatch > 0,
-                        "Wanted to have some events in the last batch")
-        self.assertTrue(nprevbatches > 0,
-                        "Expected previous batches")
-
-        # Can be used for debugging of the contents of a log file.
-        #to_execute = 'head -n 100 {0}/logs/*'.format(self.tempdir)
-        #os.system(to_execute)
-
-        for key in self.keys[-nlastbatch:]:
+        """Testing RotatedEventStore.key_exists(...).
+        
+        Overriding this test, because RotatedEventStore.key_exists(...) only
+        checks the last batch.
+        """
+        for key in self.keys3:
             self.assertTrue(self.store.key_exists(key),
-                            'Key did not exist: %s' % key)
-        for key in self.keys[:nprevbatches]:
-            self.assertFalse(self.store.key_exists(key),
-                             "Key existed when it shouldn't: %s" % key)
+                            "Key did not exist: {0}".format(key))
 
 
 class TestLogEventStore(_TestEventStore):
@@ -211,6 +308,7 @@ class TestInMemoryEventStore(_TestEventStore):
     def setUp(self):
         self.store = gtdoit.logbook.InMemoryEventStore()
         self._populate_store()
+
 
 class TestArgumentParsing(unittest.TestCase):
     """Tests command line arguments to `logbook`.
