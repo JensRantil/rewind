@@ -142,6 +142,7 @@ class _SQLiteEventStore(EventStore):
         else:
             sql = 'SELECT event FROM events WHERE eventid >= ?'
             params = (fromindex,)
+        sql = sql + " ORDER BY eventid"
         return [row[0] for row in self.conn.execute(sql, params)]
 
     def _get_eventid(self, uuid):
