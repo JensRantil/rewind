@@ -313,11 +313,7 @@ class TestInMemoryEventStore(_TestEventStore):
 
 
 class TestArgumentParsing(unittest.TestCase):
-    """Tests command line arguments to `logbook`.
-
-    TODO: Test the 'PROG --help' call gives expected output. Don't know how to
-          override sys.exit in best way.
-    """
+    """Tests command line arguments to `logbook`."""
     def setUp(self):
         # These tests will print things to stderr that nosetests does not
         # suppress. Since stdout is supressed we are simply replacing stderr
@@ -341,6 +337,13 @@ class TestArgumentParsing(unittest.TestCase):
         logbook.join(2)
         self.assertFalse(logbook.isAlive())
         self.assertEqual(logbook.exit_code, 2)
+
+    def testHelp(self):
+        logbook = _LogbookThread(['--help'])
+        logbook.start()
+        logbook.join(2)
+        self.assertFalse(logbook.isAlive())
+        self.assertEqual(logbook.exit_code, 0)
 
 
 class _LogbookThread(threading.Thread):
