@@ -318,14 +318,29 @@ class TestArgumentParsing(unittest.TestCase):
     TODO: Test the 'PROG --help' call gives expected output. Don't know how to
           override sys.exit in best way.
     """
+    def setUp(self):
+        # These tests will print things to stderr that nosetests does not
+        # suppress. Since stdout is supressed we are simply replacing stderr
+        # temporarily here.
+        self._stderr = sys.stderr
+        sys.stderr = sys.stdout
+
+    def tearDown(self):
+        sys.stderr = self._stderr
+
     def testAtLeastOneEndpointRequired(self):
-        exitcode = gtdoit.logbook.main([], exit=False)
-        self.assertEqual(exitcode, 2)
+        logbook = _LogbookThread([])
+        logbook.start()
+        logbook.join(2)
+        self.assertFalse(logbook.isAlive())
+        self.assertEqual(logbook.exit_code, 2)
 
     def testOnlyStreamingEndpointFails(self):
-        exitcode = gtdoit.logbook.main(['--streaming-bind-endpoint',
-                                        'tcp://hello'], exit=False)
-        self.assertEqual(exitcode, 2)
+        logbook = _LogbookThread(['--streaming-bind-endpoint', 'tcp://hello'])
+        logbook.start()
+        logbook.join(2)
+        self.assertFalse(logbook.isAlive())
+        self.assertEqual(logbook.exit_code, 2)
 
 
 class _LogbookThread(threading.Thread):
@@ -335,21 +350,32 @@ class _LogbookThread(threading.Thread):
     thread rather than external process. This makes it possible to check code
     coverage and track exit codes etc.
     """
-    def __init__(self, cmdline_args, exit_addr):
+    def __init__(self, cmdline_args, exit_addr=None):
         """Constructor.
 
         Parameters:
         cmdline_args -- command line arguments used to execute the logbook.
         exit_addr    -- the ZeroMQ address used to send the exit message to.
         """
-        super(_LogbookThread, self).__init__(target=gtdoit.logbook.main,
+        thread = self
+        def exitcode_runner(*args, **kwargs):
+            try:
+                gtdoit.logbook.main(*args, **kwargs)
+            except SystemExit as e:
+                thread.exit_code = e.code
+            else:
+                # If SystemExit is never thrown Python would have exitted with
+                # exit code 0
+                thread.exit_code = 0
+        super(_LogbookThread, self).__init__(target=exitcode_runner,
                                              name="test-logbook",
-                                             args=(cmdline_args,),
-                                             kwargs={'exit': False})
+                                             args=(cmdline_args,))
         self._exit_addr = exit_addr
 
     def stop(self, context):
         """Send a stop message to the event thread."""
+        assert self._exit_addr is not None
+
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)

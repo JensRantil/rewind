@@ -696,18 +696,13 @@ def run(args):
     return 0
 
 
-def main(argv=None, exit=True):
+def main(argv=None):
     """Entry point for the logbook.
 
     Parses input and calls run() for the real work.
 
     Parameters:
     argv -- sys.argv arguments. Can be set for testing purposes.
-    exit -- whether to call sys.exit(...) when this function is done, or
-            not.
-
-    returns -- the return code of the programif exit is set to True. Otherwise
-               it exits the Python interpreter before returning.
     """
     parser = argparse.ArgumentParser(
         description='Event storage and event proxy.'
@@ -761,13 +756,7 @@ def main(argv=None, exit=True):
                               dest='streaming_connect_endpoints')
 
     args = argv if argv is not None else sys.argv[1:]
-    try:
-        args = parser.parse_args(args)
-    except SystemExit as e:
-        if exit:
-            raise e
-        else:
-            return e.code
+    args = parser.parse_args(args)
 
     if not args.incoming_bind_endpoints \
        and not args.incoming_connect_endpoints \
@@ -782,8 +771,4 @@ def main(argv=None, exit=True):
             return 2
 
     exitcode = run(args)
-
-    if exit:
-        sys.exit(exitcode)
-    else:
-        return exitcode
+    sys.exit(exitcode)
