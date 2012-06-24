@@ -702,9 +702,9 @@ def main(argv=None, exit=True):
     Parses input and calls run() for the real work.
 
     Parameters:
-        argv -- sys.argv arguments. Can be set for testing purposes.
-        exit -- whether to call sys.exit(...) when this function is done, or
-                not.
+    argv -- sys.argv arguments. Can be set for testing purposes.
+    exit -- whether to call sys.exit(...) when this function is done, or
+            not.
 
     returns -- the return code of the programif exit is set to True. Otherwise
                it exits the Python interpreter before returning.
