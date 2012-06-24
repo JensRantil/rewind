@@ -328,14 +328,43 @@ class TestArgumentParsing(unittest.TestCase):
         self.assertEqual(exitcode, 2)
 
 
+class _LogbookThread(threading.Thread):
+    """A thread that runs a logbook instance.
+
+    While the thread is given command line arguments, the logbook is started as
+    thread rather than external process. This makes it possible to check code
+    coverage and track exit codes etc.
+    """
+    def __init__(self, cmdline_args, exit_addr):
+        """Constructor.
+
+        Parameters:
+        cmdline_args -- command line arguments used to execute the logbook.
+        exit_addr    -- the ZeroMQ address used to send the exit message to.
+        """
+        super(_LogbookThread, self).__init__(target=gtdoit.logbook.main,
+                                             name="test-logbook",
+                                             args=(cmdline_args,),
+                                             kwargs={'exit': False})
+        self._exit_addr = exit_addr
+
+    def stop(self, context):
+        """Send a stop message to the event thread."""
+        socket = context.socket(zmq.PUSH)
+        socket.setsockopt(zmq.LINGER, 1000)
+        socket.connect(self._exit_addr)
+        socket.send('EXIT')
+        time.sleep(0.5) # Acceptable exit time
+        assert not self.isAlive()
+        socket.close()
+
+
 class TestLogbookReplication(unittest.TestCase):
     def setUp(self):
         args = ['--exit-codeword', 'EXIT',
                 '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.logbook = threading.Thread(target=gtdoit.logbook.main,
-                                        name="logbook-replication-test",
-                                        args=(args,), kwargs={'exit': False})
+        self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
         self.logbook.start()
 
         self.context = zmq.Context(3)
@@ -412,14 +441,9 @@ class TestLogbookReplication(unittest.TestCase):
 
         self.assertTrue(self.logbook.isAlive(),
                         "Did logbook crash? Not running.")
-        self.assertTrue(self.logbook.isAlive(), "Did logbook crash? Not running.")
-        socket = self.context.socket(zmq.PUSH)
-        socket.setsockopt(zmq.LINGER, 1000)
-        socket.connect('tcp://127.0.0.1:8090')
-        socket.send('EXIT')
-        time.sleep(0.5) # Acceptable exit time
-        self.assertFalse(self.logbook.isAlive())
-        socket.close()
+        self.logbook.stop(self.context)
+        self.assertFalse(self.logbook.isAlive(),
+                         "Logbook should not have been running. It was.")
 
         self.context.term()
 
