@@ -453,9 +453,7 @@ class TestLogbookQuerying(unittest.TestCase):
         args = ['--exit-codeword', 'EXIT',
                 '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.logbook = threading.Thread(target=gtdoit.logbook.main,
-                                        name="logbook-querying-test",
-                                        args=(args,), kwargs={'exit': False})
+        self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
         self.logbook.start()
 
         self.context = zmq.Context(3)
@@ -545,13 +543,10 @@ class TestLogbookQuerying(unittest.TestCase):
     def tearDown(self):
         self.query_socket.close()
 
-        self.assertTrue(self.logbook.isAlive(), "Did logbook crash? Not running.")
-        socket = self.context.socket(zmq.PUSH)
-        socket.setsockopt(zmq.LINGER, 1000)
-        socket.connect('tcp://127.0.0.1:8090')
-        socket.send('EXIT')
-        time.sleep(0.5) # Acceptable exit time
-        self.assertFalse(self.logbook.isAlive())
-        socket.close()
+        self.assertTrue(self.logbook.isAlive(),
+                        "Did logbook crash? Not running.")
+        self.logbook.stop(self.context)
+        self.assertFalse(self.logbook.isAlive(),
+                         "Logbook should not have been running. It was.")
 
         self.context.term()
