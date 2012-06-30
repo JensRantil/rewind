@@ -361,6 +361,27 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertFalse(logbook.isAlive())
         self.assertEqual(logbook.exit_code, 0)
 
+    def testStartingWithPersistence(self):
+        datapath = tempfile.mkdtemp()
+        print "Using datapath:", datapath
+
+        args = ['--exit-codeword', 'EXIT',
+                '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
+                '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
+                '--datadir', datapath]
+        print " ".join(args)
+        self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.logbook.start()
+
+        time.sleep(3)
+        self.assertTrue(self.logbook.isAlive(),
+                        "The logbook was not running for more than 3 seconds")
+
+        # Not removing this in tearDown for two reasons:
+        # 1. Datapath is not created in setUp()
+        # 2. If this test fails, we will keep the datapath that was created.
+        shutil.rmtree(datapath)
+
 
 class _LogbookThread(threading.Thread):
     """A thread that runs a logbook instance.
@@ -391,10 +412,12 @@ class _LogbookThread(threading.Thread):
                                              args=(cmdline_args,))
         self._exit_addr = exit_addr
 
-    def stop(self, context):
+    def stop(self, context=None):
         """Send a stop message to the event thread."""
         assert self._exit_addr is not None
 
+        if context is None:
+            context = zmq.Context(1)
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)

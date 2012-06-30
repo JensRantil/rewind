@@ -9,6 +9,7 @@ import abc
 import sqlite3
 import base64
 import os
+import types
 
 import zmq
 
@@ -420,6 +421,9 @@ class RotationEventStore(EventStore):
         events_per_batch -- number of events stored in a batch before rotating
                             the files.
         """
+        assert type(events_per_batch) is types.IntType, \
+                "Events per batch must be integer."
+        assert events_per_batch > 0, "Events per batch must be positive"
         self.events_per_batch = events_per_batch
         self.count = 0
         self.stores = []
@@ -668,7 +672,26 @@ def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
 def run(args):
     """Actually execute the program."""
     if args.datadir:
-        eventstore = RotationEventStore(args.datadir)
+        dbdir = os.path.join(args.datadir, 'db')
+        def db_creator(filename):
+            return _SQLiteEventStore(filename)
+        rotated_db_estore = RotatedEventStore(db_creator, dbdir, 'sqlite')
+
+        logdir = os.path.join(args.datadir, 'appendlog')
+        def log_creator(filename):
+            return _LogEventStore(filename)
+        rotated_log_estore = RotatedEventStore(log_creator, logdir,
+                                               'appendlog')
+
+        EVENTS_PER_BATCH = 30000
+        eventstore = RotationEventStore(EVENTS_PER_BATCH)
+
+        # Important DB event store is added first. Otherwise, fast event
+        # querying will not be enabled.
+        eventstore.add_rotated_store(rotated_db_estore)
+        eventstore.add_rotated_store(rotated_log_estore)
+
+        # TODO: Make sure event stores are correctly mirrored
     else:
         logger.warn("Using InMemoryEventStore. Events are not persisted."
                     " See --datadir parameter for further info.")
