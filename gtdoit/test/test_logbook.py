@@ -8,6 +8,7 @@ import tempfile
 import os
 import shutil
 import itertools
+import contextlib
 
 import zmq
 import mock
@@ -312,36 +313,51 @@ class TestInMemoryEventStore(_TestEventStore):
         self._populate_store()
 
 
-class TestArgumentParsing(unittest.TestCase):
-    """Tests command line arguments to `logbook`."""
+@contextlib.contextmanager
+def _direct_stderr_to_stdout():
+    """Context manager for wrapping tests that prints to stderr.
+    
+    Nosetests does not capture stderr.
+    """
+    real_stderr = sys.stderr
+    sys.stderr = sys.stdout
+    yield
+    sys.stderr = real_stderr
+
+
+class TestCommandLineExecution(unittest.TestCase):
+    """Tests various command line arguments for `logbook`."""
     def setUp(self):
-        # These tests will print things to stderr that nosetests does not
-        # suppress. Since stdout is supressed we are simply replacing stderr
-        # temporarily here.
-        self._stderr = sys.stderr
-        sys.stderr = sys.stdout
+        # See tearDown() why this one is defined
+        self.logbook = None
 
     def tearDown(self):
-        sys.stderr = self._stderr
+        if self.logbook and self.logbook.isAlive():
+            # Making sure to close a logbook if it has been defined
+            self.logbook.stop()
+            self.logbook = None
 
     def testAtLeastOneEndpointRequired(self):
-        logbook = _LogbookThread([])
-        logbook.start()
-        logbook.join(2)
+        with _direct_stderr_to_stdout():
+            logbook = _LogbookThread([])
+            logbook.start()
+            logbook.join(2)
         self.assertFalse(logbook.isAlive())
         self.assertEqual(logbook.exit_code, 2)
 
     def testOnlyStreamingEndpointFails(self):
-        logbook = _LogbookThread(['--streaming-bind-endpoint', 'tcp://hello'])
-        logbook.start()
-        logbook.join(2)
+        with _direct_stderr_to_stdout():
+            logbook = _LogbookThread(['--streaming-bind-endpoint', 'tcp://hello'])
+            logbook.start()
+            logbook.join(2)
         self.assertFalse(logbook.isAlive())
         self.assertEqual(logbook.exit_code, 2)
 
     def testHelp(self):
-        logbook = _LogbookThread(['--help'])
-        logbook.start()
-        logbook.join(2)
+        with _direct_stderr_to_stdout():
+            logbook = _LogbookThread(['--help'])
+            logbook.start()
+            logbook.join(2)
         self.assertFalse(logbook.isAlive())
         self.assertEqual(logbook.exit_code, 0)
 
