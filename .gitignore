@@ -1,3 +1,6 @@
+# Created by `./setup.py develop`
+GTDoit.egg-info
+
 # Nose files
 .noseids
 
