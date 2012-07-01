@@ -1,0 +1,9 @@
+=========
+TODO list
+=========
+ * Make sure we have 100% coverage.
+ * Add corruption detection of old batches in `logbook` at startup.
+  * Add automatic data corruption correction based on the corruption
+    detection.
+ * Write tests that make sure all public functions, classes and
+   constants have pydocs.
