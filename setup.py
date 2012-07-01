@@ -16,8 +16,8 @@ setup(
     ],
     long_description=open('README.txt').read(),
     install_requires=[
-        "protobuf", # TODO: Add version
-        "pyzmq",    # TODO: Add version
+        "protobuf==2.4.1",
+        "pyzmq==2.2.0",
     ],
     entry_points={
         'console_scripts': [
