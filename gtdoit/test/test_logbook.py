@@ -365,8 +365,7 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print "Using datapath:", datapath
 
-        args = ['--exit-codeword', 'EXIT',
-                '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
+        args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
         print " ".join(args)
@@ -390,6 +389,8 @@ class _LogbookThread(threading.Thread):
     thread rather than external process. This makes it possible to check code
     coverage and track exit codes etc.
     """
+    _EXIT_CODE = 'EXIT'
+
     def __init__(self, cmdline_args, exit_addr=None):
         """Constructor.
 
@@ -398,6 +399,11 @@ class _LogbookThread(threading.Thread):
         exit_addr    -- the ZeroMQ address used to send the exit message to.
         """
         thread = self
+
+        assert '--exit-codeword' not in cmdline_args, \
+                "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
+        cmdline_args = ['--exit-codeword', _LogbookThread._EXIT_CODE] + cmdline_args
+
         def exitcode_runner(*args, **kwargs):
             try:
                 gtdoit.logbook.main(*args, **kwargs)
@@ -421,7 +427,7 @@ class _LogbookThread(threading.Thread):
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)
-        socket.send('EXIT')
+        socket.send(_LogbookThread._EXIT_CODE)
         time.sleep(0.5) # Acceptable exit time
         assert not self.isAlive()
         socket.close()
@@ -429,8 +435,7 @@ class _LogbookThread(threading.Thread):
 
 class TestLogbookReplication(unittest.TestCase):
     def setUp(self):
-        args = ['--exit-codeword', 'EXIT',
-                '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
+        args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
         self.logbook.start()
@@ -518,8 +523,7 @@ class TestLogbookReplication(unittest.TestCase):
 
 class TestLogbookQuerying(unittest.TestCase):
     def setUp(self):
-        args = ['--exit-codeword', 'EXIT',
-                '--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
+        args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
         self.logbook.start()
