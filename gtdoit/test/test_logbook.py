@@ -18,7 +18,7 @@ import gtdoit.messages.events_pb2 as events_pb2
 import gtdoit.communicators as communicators
 
 
-class _TestEventStore(unittest.TestCase):
+class _TestEventStore:
     """Test a generic event store.
 
     This class is abstract and should be subclassed in a class that defines a
@@ -68,7 +68,7 @@ class _TestEventStore(unittest.TestCase):
                             "Key did not exist: {0}".format(key))
 
 
-class TestRotationEventStore(_TestEventStore):
+class TestRotationEventStore(unittest.TestCase, _TestEventStore):
     """Test `RotationEventStore`."""
 
     # Number of events per batch
@@ -144,7 +144,7 @@ class TestRotationEventStore(_TestEventStore):
                                 "Key did not exist: {0}".format(key))
 
 
-class TestRotatedEventStorage(_TestEventStore):
+class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
     def setUp(self):
         """Setup method before each test.
 
@@ -243,7 +243,7 @@ class TestRotatedEventStorage(_TestEventStore):
                             "Key did not exist: {0}".format(key))
 
 
-class TestLogEventStore(_TestEventStore):
+class TestLogEventStore(unittest.TestCase, _TestEventStore):
     def setUp(self):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
                                                     suffix='.log',
@@ -271,7 +271,7 @@ class TestLogEventStore(_TestEventStore):
         os.remove(self.tempfile.name)
 
 
-class TestSQLiteEventStore(_TestEventStore):
+class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
     """Test `_SQLiteEventStore`."""
     def setUp(self):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
@@ -306,7 +306,7 @@ class TestSQLiteEventStore(_TestEventStore):
         os.remove(self.tempfile.name)
         
 
-class TestInMemoryEventStore(_TestEventStore):
+class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
     """Test `InMemoryEventStore`."""
     def setUp(self):
         self.store = gtdoit.logbook.InMemoryEventStore()
