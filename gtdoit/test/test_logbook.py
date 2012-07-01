@@ -406,7 +406,7 @@ class _LogbookThread(threading.Thread):
 
         def exitcode_runner(*args, **kwargs):
             try:
-                gtdoit.logbook.main(*args, **kwargs)
+                thread.exit_code = gtdoit.logbook.main(*args, **kwargs)
             except SystemExit as e:
                 thread.exit_code = e.code
             else:

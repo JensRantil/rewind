@@ -794,4 +794,4 @@ def main(argv=None):
             return 2
 
     exitcode = run(args)
-    sys.exit(exitcode)
+    return exitcode
