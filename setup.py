@@ -4,6 +4,10 @@ from setuptools import setup
 # since we are using the new(er) argparse module we need to enforce this
 # requirement. See supervisor's setup.py for details on how to do this.
 
+tests_require = [
+    "mock==0.8",
+]
+
 setup(
     name='GTDoit',
     version='0.1dev',
@@ -15,10 +19,16 @@ setup(
         'gtdoit.test'
     ],
     long_description=open('README.txt').read(),
+    setup_requires=[
+        'nose>=1.0',
+        'coverage==3.5.1',
+    ],
     install_requires=[
         "protobuf==2.4.1",
         "pyzmq==2.2.0",
     ],
+    tests_require=tests_require,
+    test_suite="gtdoit.test",
     entry_points={
         'console_scripts': [
             'logbook = gtdoit.logbook:main',
