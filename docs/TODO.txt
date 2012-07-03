@@ -8,4 +8,3 @@ TODO list
  * Write tests that make sure all public functions, classes and
    constants have pydocs.
  * Add documentation about the overall architecture.
- * Add documentation on how to get started developing.
