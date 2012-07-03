@@ -7,4 +7,6 @@ TODO list
     detection.
  * Write tests that make sure all public functions, classes and
    constants have pydocs.
+ * Write tests that makes sure all parameters to functions and class
+   methods are mentioned in the pydoc.
  * Add documentation about the overall architecture.
