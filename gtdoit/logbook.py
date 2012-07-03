@@ -1,6 +1,8 @@
 import argparse
 import base64
+import collections
 import contextlib
+import csv
 import itertools
 import logging
 import os
@@ -16,6 +18,52 @@ import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
 
 
 logger = logging.getLogger(__name__)
+
+
+class KeyValuePersister(collections.MutableMapping):
+    """A persisted append-only MutableMapping implementation."""
+    class InsertError(Exception):
+        pass
+
+    def __init__(self, filename, delimiter):
+        with open(filename, 'rb') as f:
+            csvf = csv.reader(f, delimiter=delimiter)
+            keyvals = dict((row[0], row[1]) for row in csvf if len(row)==2)
+
+        rawfile = open(filename, 'wb')
+        csvf = csv.writer(rawfile, delimiter=delimiter)
+
+        self._keyvals = keyvals
+        self._file = rawfile
+        self._csvf = csvf
+        self._delimiter = delimiter
+
+    def close(self):
+        self._keyvals = {}
+        self._csvf = None
+        self._file.close()
+        self._file = None
+
+    def __delitem__(self, key):
+        raise NotImplementedError('KeyValuePersister is append only.')
+
+    def __getitem__(self, key):
+        return self._keyvals[key]
+
+    def __iter__(self):
+        return iter(self._keyvals)
+
+    def __len__(self):
+        return len(self._keyvals)
+
+    def __setitem__(self, key, val):
+        if key in self._keyvals:
+            raise KeyValuePersister.InsertError("Duplicate key: %s" % key)
+        if self._delimiter in key:
+            msg = "Key contained delimiter: %s" % key
+            raise KeyValuePersister.InsertError(msg)
+        self._keyvals[key] = val
+        self._csvf.writerow([key, val])
 
 
 class LogBookKeyError(KeyError):

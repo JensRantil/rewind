@@ -635,3 +635,88 @@ class TestLogbookQuerying(unittest.TestCase):
                          "Logbook should not have been running. It was.")
 
         self.context.term()
+
+
+class TestKeyValuePersister(unittest.TestCase):
+    keyvals = {
+        'key1': 'val1',
+        'key2': 'val2',
+        'key3': 'val3',
+    }
+
+    def setUp(self):
+        namedfile = tempfile.NamedTemporaryFile(delete=False)
+        self.keyvalfile = namedfile.name
+        keyvalpersister = self._open_persister()
+
+        self.namedfile = namedfile
+        self.keyvalpersister = keyvalpersister
+
+    def _open_persister(self):
+        return gtdoit.logbook.KeyValuePersister(self.keyvalfile, " ")
+
+    def tearDown(self):
+        self.keyvalpersister.close()
+        self.keyvalpersister = None
+        self.namedfile.close()
+        self.keyvalfile = None
+        self.namedfile = None
+
+    def _write_keyvals(self):
+        for key, val in self.keyvals.iteritems():
+            self.keyvalpersister[key] = val
+
+    def _assertValuesWereWritten(self):
+        for key, val in self.keyvals.iteritems():
+            self.assertTrue(key in self.keyvalpersister)
+            self.assertEqual(self.keyvalpersister[key], val)
+        self.assertEqual(len(self.keyvalpersister), len(self.keyvals))
+
+    def testAppending(self):
+        self._write_keyvals()
+        self._assertValuesWereWritten()
+
+    def _assert_delimieter_key_exception(self):
+        faulty_keys = ["a key", "key ", " key"]
+        for key in faulty_keys:
+            self.assertRaises(gtdoit.logbook.KeyValuePersister.InsertError,
+                              lambda x,y: self.keyvalpersister.__setitem__(x,y),
+                              key, "5")
+
+    def testAppendingKeyContainingDelimiter(self):
+        self._assert_delimieter_key_exception()
+        self.assertEqual(len(self.keyvalpersister), 0)
+
+    def testWritingAfterInsertError(self):
+        self.testAppendingKeyContainingDelimiter()
+        self._write_keyvals()
+        self._assert_delimieter_key_exception()
+        self.assertEqual(len(self.keyvalpersister), 3)
+        self._assertValuesWereWritten()
+
+    def testReopen(self):
+        self._write_keyvals()
+        self._assertValuesWereWritten()
+        self.keyvalpersister.close()
+        self.keyvalpersister = self._open_persister()
+        self._assertValuesWereWritten()
+
+    def testIter(self):
+        self._write_keyvals()
+        vals = iter(self.keyvalpersister)
+        self.assertEqual(set(vals), set(self.keyvals))
+
+    def testDuplicateKeyCheck(self):
+        self._write_keyvals()
+        self.assertRaises(gtdoit.logbook.KeyValuePersister.InsertError,
+                          self.keyvalpersister.__setitem__,
+                          self.keyvals.keys()[0], "56")
+
+    def testDelItem(self):
+        """Test __delitem__ behaviour.
+
+        __delitem__ is not really used, but we want to keep 100% coverage,
+        so...
+        """
+        self.assertRaises(NotImplementedError, self.keyvalpersister.__delitem__,
+                          self.keyvals.keys()[0])
