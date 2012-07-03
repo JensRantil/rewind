@@ -640,7 +640,7 @@ class TestLogbookQuerying(unittest.TestCase):
 class TestKeyValuePersister(unittest.TestCase):
     keyvals = {
         'key1': 'val1',
-        'key2': 'val2',
+        'key2': 'value number two',
         'key3': 'val3',
     }
 
@@ -656,8 +656,9 @@ class TestKeyValuePersister(unittest.TestCase):
         return gtdoit.logbook.KeyValuePersister(self.keyvalfile, " ")
 
     def tearDown(self):
-        self.keyvalpersister.close()
-        self.keyvalpersister = None
+        if self.keyvalpersister:
+            self.keyvalpersister.close()
+            self.keyvalpersister = None
         self.namedfile.close()
         self.keyvalfile = None
         self.namedfile = None
@@ -720,3 +721,18 @@ class TestKeyValuePersister(unittest.TestCase):
         """
         self.assertRaises(NotImplementedError, self.keyvalpersister.__delitem__,
                           self.keyvals.keys()[0])
+
+    def testFileOutput(self):
+        """Making sure we are writing in md5sum format."""
+        self._write_keyvals()
+
+        self.keyvalpersister.close()
+        self.keyvalpersister = None # Needed so tearDown doesn't close
+
+        with open(self.keyvalfile) as f:
+            content = f.read()
+            actual_lines = content.splitlines()
+            expected_lines = ["%s %s" % (k,v)
+                              for k,v in self.keyvals.iteritems()]
+        self.assertEquals(actual_lines, expected_lines)
+

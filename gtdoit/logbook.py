@@ -26,21 +26,24 @@ class KeyValuePersister(collections.MutableMapping):
         pass
 
     def __init__(self, filename, delimiter):
+        keyvals = {}
         with open(filename, 'rb') as f:
-            csvf = csv.reader(f, delimiter=delimiter)
-            keyvals = dict((row[0], row[1]) for row in csvf if len(row)==2)
+            for line in f:
+                line = line.strip("\r\n")
+                pieces = line.split(delimiter)
+                if len(pieces) >= 2:
+                    key = pieces[0]
+                    val = delimiter.join(pieces[1:])
+                    keyvals[key] = val
 
         rawfile = open(filename, 'wb')
-        csvf = csv.writer(rawfile, delimiter=delimiter)
 
         self._keyvals = keyvals
         self._file = rawfile
-        self._csvf = csvf
         self._delimiter = delimiter
 
     def close(self):
         self._keyvals = {}
-        self._csvf = None
         self._file.close()
         self._file = None
 
@@ -63,7 +66,7 @@ class KeyValuePersister(collections.MutableMapping):
             msg = "Key contained delimiter: %s" % key
             raise KeyValuePersister.InsertError(msg)
         self._keyvals[key] = val
-        self._csvf.writerow([key, val])
+        self._file.write("%s %s\n" % (key, val))
 
 
 class LogBookKeyError(KeyError):
