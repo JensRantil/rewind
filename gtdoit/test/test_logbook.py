@@ -1,21 +1,21 @@
+import contextlib
+import itertools
+import random
+import shutil
 import sys
-import unittest
+import tempfile
 import threading
 import time
+import unittest
 import uuid
-import random
-import tempfile
 import os
-import shutil
-import itertools
-import contextlib
 
-import zmq
 import mock
+import zmq
 
+import gtdoit.communicators as communicators
 import gtdoit.logbook
 import gtdoit.messages.events_pb2 as events_pb2
-import gtdoit.communicators as communicators
 
 
 class _TestEventStore:
