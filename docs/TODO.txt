@@ -5,7 +5,7 @@ TODO list
  * Add corruption detection of old batches in `logbook` at startup.
   * Add automatic data corruption correction based on the corruption
     detection.
- * Write tests that make sure all public functions, classes and
+ * Write tests that make sure all modules, public functions, classes and
    constants have pydocs.
  * Write tests that makes sure all parameters to functions and class
    methods are mentioned in the pydoc.
