@@ -10,3 +10,4 @@ TODO list
  * Write tests that makes sure all parameters to functions and class
    methods are mentioned in the pydoc.
  * Add documentation about the overall architecture.
+ * Write tests that makes sure imports are sorted in alphabetical order.
