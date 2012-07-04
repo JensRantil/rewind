@@ -68,6 +68,19 @@ class _TestEventStore:
                             "Key did not exist: {0}".format(key))
 
 
+class TestEventStore(unittest.TestCase):
+    """Tests the class `EventStore`."""
+    def testStubs(self):
+        """Makes sure `EventStore` behaves the way we expect."""
+        estore = gtdoit.logbook.EventStore()
+        self.assertRaises(NotImplementedError, estore.add_event, "key", "event")
+        self.assertRaises(NotImplementedError, estore.get_events)
+        self.assertRaises(NotImplementedError, estore.get_events, "from")
+        self.assertRaises(NotImplementedError, estore.get_events, "from", "to")
+        self.assertRaises(NotImplementedError, estore.key_exists, "key")
+        estore.close() # Should not throw anything
+
+
 class TestRotationEventStore(unittest.TestCase, _TestEventStore):
     """Test `RotationEventStore`."""
 

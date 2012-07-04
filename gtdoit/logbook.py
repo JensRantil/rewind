@@ -5,7 +5,6 @@ import logging
 import uuid
 import itertools
 import contextlib
-import abc
 import sqlite3
 import base64
 import os
@@ -36,27 +35,23 @@ class LogBookEventOrderError(IndexError):
 class EventStore(object):
     """Stores events and keeps track of their order.
     
-    Abstract class.
+    This class is here mostly for documentation. It shows which methods in
+    general needs to be implemented by its supclasses.
     """
-    __metaclass__ = abc.ABCMeta
-
     class EventKeyAlreadyExistError(LogBookKeyError):
         pass
 
     class EventKeyDoesNotExistError(LogBookKeyError):
         pass
 
-    @abc.abstractmethod
     def add_event(self, key, event):
-        pass
+        raise NotImplementedError("Should be implemented by subclass.")
 
-    @abc.abstractmethod
     def get_events(self, from_=None, to=None):
-        pass
+        raise NotImplementedError("Should be implemented by subclass.")
 
-    @abc.abstractmethod
     def key_exists(self, key):
-        pass
+        raise NotImplementedError("Should be implemented by subclass.")
 
     def close(self):
         """Close the store.
@@ -102,8 +97,6 @@ class InMemoryEventStore(EventStore):
 
     def key_exists(self, key):
         return key in self.keys
-
-EventStore.register(InMemoryEventStore)
 
 
 class _SQLiteEventStore(EventStore):
@@ -179,8 +172,6 @@ class _SQLiteEventStore(EventStore):
         if self.conn:
             self.conn.close()
             self.conn = None
-
-EventStore.register(_SQLiteEventStore)
 
 
 class _LogEventStore(EventStore):
@@ -269,8 +260,6 @@ class _LogEventStore(EventStore):
 
     def close(self):
         self._close()
-
-EventStore.register(_LogEventStore)
 
 
 class RotatedEventStore(EventStore):
@@ -402,8 +391,6 @@ class RotatedEventStore(EventStore):
         """Checks whether the key exists in the current event store."""
         return self.estore.key_exists(key)
 
-EventStore.register(RotatedEventStore)
-
 
 class RotationEventStore(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
@@ -528,8 +515,6 @@ class RotationEventStore(EventStore):
 
     def get_events(self, from_=None, to=None):
         return self.stores[0].get_events(from_, to)
-
-EventStore.register(RotationEventStore)
 
 
 class IdGenerator:
