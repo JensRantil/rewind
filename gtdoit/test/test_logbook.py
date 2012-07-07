@@ -102,14 +102,14 @@ class TestRotationEventStore(unittest.TestCase, _TestEventStore):
         memstores = []
         rotated_memstores = []
         files_created = {}
+        def memstore_factory_side_effect(fname):
+            if fname not in files_created:
+                memstore = gtdoit.logbook.InMemoryEventStore()
+                memstore.close = mock.Mock()
+                memstores.append(memstore)
+                files_created[fname] = memstore
+            return files_created[fname]
         for params in rotated_estore_params:
-            def memstore_factory_side_effect(fname):
-                if fname not in files_created:
-                    memstore = gtdoit.logbook.InMemoryEventStore()
-                    memstore.close = mock.Mock()
-                    memstores.append(memstore)
-                    files_created[fname] = memstore
-                return files_created[fname]
             memstore_factory = mock.Mock()
             memstore_factory.side_effect = memstore_factory_side_effect
             with mock.patch('os.mkdir') as mkdir_mock:
