@@ -81,8 +81,8 @@ class TestEventStore(unittest.TestCase):
         estore.close() # Should not throw anything
 
 
-class TestRotationEventStore(unittest.TestCase, _TestEventStore):
-    """Test `RotationEventStore`."""
+class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
+    """Test `SyncedRotationEventStores`."""
 
     # Number of events per batch
     EVS_PER_BATCH = 5
@@ -128,8 +128,8 @@ class TestRotationEventStore(unittest.TestCase, _TestEventStore):
         self._populate_store()
 
     def _openStore(self):
-        evs_per_batch = TestRotationEventStore.EVS_PER_BATCH
-        store = gtdoit.logbook.RotationEventStore(evs_per_batch)
+        evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
+        store = gtdoit.logbook.SyncedRotationEventStores(evs_per_batch)
         for rotated_memstore in self.rotated_memstores:
             store.add_rotated_store(rotated_memstore)
         self.store = store
@@ -147,7 +147,7 @@ class TestRotationEventStore(unittest.TestCase, _TestEventStore):
         self.assertEqual(list(events_before_reload), list(events_after_reload))
         
     def testKeyExists(self):
-        evs_per_batch = TestRotationEventStore.EVS_PER_BATCH
+        evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
         if nkeys_in_last_batch > 0:
             # No reasons to test if there were no events written to this batch

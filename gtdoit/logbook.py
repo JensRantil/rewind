@@ -442,7 +442,7 @@ class RotatedEventStore(EventStore):
         return self.estore.key_exists(key)
 
 
-class RotationEventStore(EventStore):
+class SyncedRotationEventStores(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
     
     Rotation is done at the same time for all event stores to make sure they are
@@ -500,12 +500,12 @@ class RotationEventStore(EventStore):
 
         TODO: Test.
         """
-        RotationEventStore._test_log_filename_format(logpath)
-        RotationEventStore._test_db_filename_format(dbpath)
+        SyncedRotationEventStores._test_log_filename_format(logpath)
+        SyncedRotationEventStores._test_db_filename_format(dbpath)
 
         # Simply shortened constants
-        dbprefix = RotationEventStore.DATABASE_PREFIX
-        logprefix = RotationEventStore.LOG_PREFIX
+        dbprefix = SyncedRotationEventStores.DATABASE_PREFIX
+        logprefix = SyncedRotationEventStores.LOG_PREFIX
 
         dbfiles = os.listdir(dbpath)
         logfiles = os.listdir(logpath)
@@ -524,16 +524,16 @@ class RotationEventStore(EventStore):
             if not logfile_exists:
                 logger.warn("Integrity issue. Missing file: %s", logfile)
             if not dbfile_exists:
-                RotationEventStore.IntegrityError("Missing file: %s",
+                SyncedRotationEventStores.IntegrityError("Missing file: %s",
                                                    dbfile)
             if not logfile_exists:
-                RotationEventStore.IntegrityError("Missing file: %s",
+                SyncedRotationEventStores.IntegrityError("Missing file: %s",
                                                    logfile)
             if not os.path.isfile(dbfile):
-                RotationEventStore.IntegrityError("Not regular file: %s",
+                SyncedRotationEventStores.IntegrityError("Not regular file: %s",
                                                    dbfile)
             if not os.path.isfile(logfile):
-                RotationEventStore.IntegrityError("Not regular file: %s",
+                SyncedRotationEventStores.IntegrityError("Not regular file: %s",
                                                    logfile)
 
             # TODO: Recreate database from log if it seems corrupt.
@@ -721,7 +721,7 @@ def run(args):
                                                'appendlog')
 
         EVENTS_PER_BATCH = 30000
-        eventstore = RotationEventStore(EVENTS_PER_BATCH)
+        eventstore = SyncedRotationEventStores(EVENTS_PER_BATCH)
 
         # Important DB event store is added first. Otherwise, fast event
         # querying will not be enabled.
