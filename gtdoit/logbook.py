@@ -456,7 +456,9 @@ class RotationEventStore(EventStore):
         
         Parameters:
         events_per_batch -- number of events stored in a batch before rotating
-                            the files.
+                            the files. Defaults to 25000. That number is
+                            arbitrary and should probably be configures so that
+                            files do not grow out of proportion.
         """
         assert type(events_per_batch) is types.IntType, \
                 "Events per batch must be integer."
