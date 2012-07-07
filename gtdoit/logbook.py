@@ -470,6 +470,8 @@ class SyncedRotationEventStores(EventStore):
         # TODO: Test that 'md5sum' exists
 
     def add_rotated_store(self, rotated_store):
+        assert self.count == 0, \
+                "Must not have written before adding additional estores"
         self.stores.append(rotated_store)
 
     def _rotate_files_if_needed(self):
