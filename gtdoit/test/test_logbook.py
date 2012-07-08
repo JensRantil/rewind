@@ -653,7 +653,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister = keyvalpersister
 
     def _open_persister(self):
-        return gtdoit.logbook.KeyValuePersister(self.keyvalfile, " ")
+        return gtdoit.logbook.KeyValuePersister(self.keyvalfile)
 
     def tearDown(self):
         if self.keyvalpersister:
@@ -707,11 +707,16 @@ class TestKeyValuePersister(unittest.TestCase):
         vals = iter(self.keyvalpersister)
         self.assertEqual(set(vals), set(self.keyvals))
 
-    def testDuplicateKeyCheck(self):
+    def testChangingValue(self):
         self._write_keyvals()
-        self.assertRaises(gtdoit.logbook.KeyValuePersister.InsertError,
-                          self.keyvalpersister.__setitem__,
-                          self.keyvals.keys()[0], "56")
+
+        # Changing value of the first key
+        first_key = self.keyvals.keys()[0]
+        new_value = "56"
+        self.assertNotEqual(self.keyvalpersister[first_key], new_value)
+        self.keyvalpersister[first_key] = new_value
+
+        self.assertEqual(self.keyvalpersister[first_key], new_value)
 
     def testDelItem(self):
         """Test __delitem__ behaviour.

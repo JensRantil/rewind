@@ -22,28 +22,32 @@ logger = logging.getLogger(__name__)
 
 class KeyValuePersister(collections.MutableMapping):
     """A persisted append-only MutableMapping implementation."""
+    _delimiter = " "
+
     class InsertError(Exception):
         pass
 
-    def __init__(self, filename, delimiter):
+    def __init__(self, filename):
+        self._filename = filename
+        self._open()
+
+    def _open(self):
         keyvals = {}
-        with open(filename, 'rb') as f:
+        with open(self._filename, 'rb') as f:
             for line in f:
                 line = line.strip("\r\n")
-                pieces = line.split(delimiter)
+                pieces = line.split(self._delimiter)
                 if len(pieces) >= 2:
                     key = pieces[0]
-                    val = delimiter.join(pieces[1:])
+                    val = self._delimiter.join(pieces[1:])
                     keyvals[key] = val
 
-        rawfile = open(filename, 'wb')
+        rawfile = open(self._filename, 'wb')
 
         self._keyvals = keyvals
         self._file = rawfile
-        self._delimiter = delimiter
 
     def close(self):
-        self._keyvals = {}
         self._file.close()
         self._file = None
 
@@ -60,13 +64,21 @@ class KeyValuePersister(collections.MutableMapping):
         return len(self._keyvals)
 
     def __setitem__(self, key, val):
-        if key in self._keyvals:
-            raise KeyValuePersister.InsertError("Duplicate key: %s" % key)
         if self._delimiter in key:
             msg = "Key contained delimiter: %s" % key
             raise KeyValuePersister.InsertError(msg)
-        self._keyvals[key] = val
-        self._file.write("%s %s\n" % (key, val))
+        if key in self._keyvals:
+            self._keyvals[key] = val
+            self.close()
+            # Rewriting the whole file serially. Yes, it's a slow operation, but
+            # hey - it's an ascii file
+            with open(self._filename, 'wb') as f:
+                for key, val in self._keyvals.iteritems():
+                    f.write("%s%s%s\n" % (key, self._delimiter, val))
+            self._open()
+        else:
+            self._keyvals[key] = val
+            self._file.write("%s%s%s\n" % (key, self._delimiter, val))
 
 
 class LogBookKeyError(KeyError):
