@@ -42,7 +42,7 @@ class KeyValuePersister(collections.MutableMapping):
                     val = self._delimiter.join(pieces[1:])
                     keyvals[key] = val
 
-        rawfile = open(self._filename, 'wb')
+        rawfile = open(self._filename, 'ab')
 
         self._keyvals = keyvals
         self._file = rawfile

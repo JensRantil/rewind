@@ -698,9 +698,10 @@ class TestKeyValuePersister(unittest.TestCase):
     def testReopen(self):
         self._write_keyvals()
         self._assertValuesWereWritten()
-        self.keyvalpersister.close()
-        self.keyvalpersister = self._open_persister()
-        self._assertValuesWereWritten()
+        for i in range(3):
+            self.keyvalpersister.close()
+            self.keyvalpersister = self._open_persister()
+            self._assertValuesWereWritten()
 
     def testIter(self):
         self._write_keyvals()
