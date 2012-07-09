@@ -3,6 +3,7 @@ import base64
 import collections
 import contextlib
 import csv
+import hashlib
 import itertools
 import logging
 import os
@@ -112,6 +113,11 @@ class LogBookEventOrderError(IndexError):
 
     That is if from-key was generated after to-key.
     """
+    pass
+
+
+class LogBookCorruptionError(Exception):
+    """Exception raised when data seem corrupt."""
     pass
 
 
@@ -257,13 +263,37 @@ class _SQLiteEventStore(EventStore):
             self.conn = None
 
 
+def hashfile(afile, hasher, blocksize=65536):
+    buf = afile.read(blocksize)
+    while len(buf) > 0:
+        hasher.update(buf)
+        buf = afile.read(blocksize)
+
+
 class _LogEventStore(EventStore):
     def __init__(self, path):
-        self.path = path
+        self._hasher = self._initialize_hasher(path)
+
+        fname = os.path.basename(path)
+        checksum_persister = self._get_checksum_persister(path)
+        if fname in checksum_persister and \
+           checksum_persister[fname] != self._hasher.hexdigest():
+            msg = "The file '%s' was had wrong md5." % path
+            raise LogBookCorruptionError(msg)
+        
+        self._path = path
         self._open()
 
+    @staticmethod
+    def _initialize_hasher(path):
+        hasher = hashlib.md5()
+        if os.path.exists(path):
+            with open(path) as f:
+                hashfile(f, hasher)
+        return hasher
+
     def _open(self):
-        self.f = open(self.path, 'ab')
+        self.f = open(self._path, 'ab')
 
     def _close(self):
         if self.f:
@@ -283,11 +313,12 @@ class _LogEventStore(EventStore):
         data = "{0}\t{1}\n".format(safe_key, safe_event)
         
         # Important to make a single atomic write here
+        self._hasher.update(data)
         self.f.write(data)
 
     def _unsafe_get_events(self, from_, to):
         eventstrs = []
-        with open(self.path) as f:
+        with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             if from_:
                 for line in f:
@@ -322,7 +353,7 @@ class _LogEventStore(EventStore):
 
     def _unsafe_key_exists(self, needle):
         eventstrs = []
-        with open(self.path) as f:
+        with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             for line in f:
                 key, eventstr = line.strip().split("\t")
@@ -341,7 +372,20 @@ class _LogEventStore(EventStore):
         finally:
             self._open()
 
+    @staticmethod
+    def _get_checksum_persister(path):
+        directory = os.path.dirname(path)
+        checksum_fname = os.path.join(directory, "checksums.md5")
+        checksum_persister = KeyValuePersister(checksum_fname)
+        return checksum_persister
+
     def close(self):
+        """Persists a checksum and closes the file."""
+        fname = os.path.basename(self._path)
+        checksum_persister = self._get_checksum_persister(self._path)
+        with contextlib.closing(checksum_persister):
+            checksum_persister[fname] = self._hasher.hexdigest()
+
         self._close()
 
 

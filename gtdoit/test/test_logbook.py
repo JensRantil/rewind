@@ -273,11 +273,14 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                         "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
 
-    def testReopenWithoutClose(self):
-        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
-        self.assertEqual(len(self.keys), len(self.vals),
-                        "Keys and vals did not match in number.")
-        self.assertEqual(len(self.store.get_events(),), len(self.keys))
+    def testCorruptionCheckOnOpen(self):
+        """Asserting we identify corrupt `LogEventStore` files."""
+        self.store.close()
+        with open(self.tempfile.name, 'wb') as f:
+            f.write("Random data %%%!!!??")
+        self.assertRaises(gtdoit.logbook.LogBookCorruptionError,
+                          gtdoit.logbook._LogEventStore,
+                          self.tempfile.name)
 
     def tearDown(self):
         self.store.close()
