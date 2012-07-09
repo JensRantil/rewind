@@ -304,18 +304,21 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.assertTrue(self.store.count() == len(self.keys),
                         "Count was incorrect.")
 
-    def testReopenWithoutClose(self):
-        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
-
-        # testCount does exactly the test we want to do. Reusing it.
-        self.testCount()
-
     def testReopenWithClose(self):
         self.store.close()
         self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
+
+    def testCorruptionCheckOnOpen(self):
+        """Asserting we identify corrupt `_SQLiteEventStore` files."""
+        self.store.close()
+        with open(self.tempfile.name, 'wb') as f:
+            f.write("Random data %%%!!!??")
+        self.assertRaises(gtdoit.logbook.LogBookCorruptionError,
+                          gtdoit.logbook._SQLiteEventStore,
+                          self.tempfile.name)
 
     def tearDown(self):
         self.store.close()

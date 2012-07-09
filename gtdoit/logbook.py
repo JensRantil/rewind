@@ -191,6 +191,14 @@ class InMemoryEventStore(EventStore):
 class _SQLiteEventStore(EventStore):
     """Stores events in an sqlite database."""
     def __init__(self, path):
+        fname = os.path.basename(path)
+        checksum_persister = _get_checksum_persister(path)
+        hasher = _initialize_hasher(path)
+        if fname in checksum_persister and \
+           checksum_persister[fname] != hasher.hexdigest():
+            msg = "The file '%s' was had wrong md5." % path
+            raise LogBookCorruptionError(msg)
+
         # isolation_level=None => autocommit mode
         self.conn = sqlite3.connect(path, isolation_level=None)
 
@@ -201,6 +209,8 @@ class _SQLiteEventStore(EventStore):
                 event BLOB
             );
         ''');
+
+        self._path = path
 
     def add_event(self, key, event):
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
@@ -262,20 +272,41 @@ class _SQLiteEventStore(EventStore):
             self.conn.close()
             self.conn = None
 
+        fname = os.path.basename(self._path)
+        checksum_persister = _get_checksum_persister(self._path)
+        hasher = _initialize_hasher(self._path)
+        with contextlib.closing(checksum_persister):
+            checksum_persister[fname] = hasher.hexdigest()
 
-def hashfile(afile, hasher, blocksize=65536):
+
+def _hashfile(afile, hasher, blocksize=65536):
     buf = afile.read(blocksize)
     while len(buf) > 0:
         hasher.update(buf)
         buf = afile.read(blocksize)
 
 
+def _initialize_hasher(path):
+    hasher = hashlib.md5()
+    if os.path.exists(path):
+        with open(path) as f:
+            _hashfile(f, hasher)
+    return hasher
+
+
+def _get_checksum_persister(path):
+    directory = os.path.dirname(path)
+    checksum_fname = os.path.join(directory, "checksums.md5")
+    checksum_persister = KeyValuePersister(checksum_fname)
+    return checksum_persister
+
+
 class _LogEventStore(EventStore):
     def __init__(self, path):
-        self._hasher = self._initialize_hasher(path)
+        self._hasher = _initialize_hasher(path)
 
         fname = os.path.basename(path)
-        checksum_persister = self._get_checksum_persister(path)
+        checksum_persister = _get_checksum_persister(path)
         if fname in checksum_persister and \
            checksum_persister[fname] != self._hasher.hexdigest():
             msg = "The file '%s' was had wrong md5." % path
@@ -283,14 +314,6 @@ class _LogEventStore(EventStore):
         
         self._path = path
         self._open()
-
-    @staticmethod
-    def _initialize_hasher(path):
-        hasher = hashlib.md5()
-        if os.path.exists(path):
-            with open(path) as f:
-                hashfile(f, hasher)
-        return hasher
 
     def _open(self):
         self.f = open(self._path, 'ab')
@@ -372,17 +395,10 @@ class _LogEventStore(EventStore):
         finally:
             self._open()
 
-    @staticmethod
-    def _get_checksum_persister(path):
-        directory = os.path.dirname(path)
-        checksum_fname = os.path.join(directory, "checksums.md5")
-        checksum_persister = KeyValuePersister(checksum_fname)
-        return checksum_persister
-
     def close(self):
         """Persists a checksum and closes the file."""
         fname = os.path.basename(self._path)
-        checksum_persister = self._get_checksum_persister(self._path)
+        checksum_persister = _get_checksum_persister(self._path)
         with contextlib.closing(checksum_persister):
             checksum_persister[fname] = self._hasher.hexdigest()
 
