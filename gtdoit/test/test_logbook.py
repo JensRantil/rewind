@@ -742,3 +742,9 @@ class TestKeyValuePersister(unittest.TestCase):
                               for k,v in self.keyvals.iteritems()]
         self.assertEquals(actual_lines, expected_lines)
 
+    def testOpeningNonExistingFile(self):
+        randomfile = tempfile.NamedTemporaryFile()
+        randomfile.close()
+        self.assertFalse(os.path.exists(randomfile.name),
+                         "Expected file to not exist.")
+        gtdoit.logbook.KeyValuePersister(randomfile.name)

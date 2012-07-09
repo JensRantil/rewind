@@ -31,16 +31,37 @@ class KeyValuePersister(collections.MutableMapping):
         self._filename = filename
         self._open()
 
-    def _open(self):
+    @staticmethod
+    def _actually_populate_keyvals(filename):
+        """Actually read the key/values from a file.
+
+        Raises IOError if the file does not exit etcetera.
+        """
         keyvals = {}
-        with open(self._filename, 'rb') as f:
+        with open(filename, 'rb') as f:
             for line in f:
                 line = line.strip("\r\n")
-                pieces = line.split(self._delimiter)
+                pieces = line.split(KeyValuePersister._delimiter)
                 if len(pieces) >= 2:
                     key = pieces[0]
-                    val = self._delimiter.join(pieces[1:])
+                    val = KeyValuePersister._delimiter.join(pieces[1:])
                     keyvals[key] = val
+        return keyvals
+
+    @staticmethod
+    def _read_keyvals(filename):
+        """Read the key/values if the file exists.
+        
+        returns -- a dictionary with key/values, or empty dictionary if the file
+                   does not exist.
+        """
+        if os.path.exists(filename):
+            return KeyValuePersister._actually_populate_keyvals(filename)
+        else:
+            return {}
+
+    def _open(self):
+        keyvals = self._read_keyvals(self._filename)
 
         rawfile = open(self._filename, 'ab')
 
