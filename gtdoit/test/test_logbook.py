@@ -1,6 +1,7 @@
 import contextlib
 import itertools
 import random
+import hashlib
 import shutil
 import sys
 import tempfile
@@ -100,10 +101,17 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             },
         ]
 
-        mocked_factories = []
-        rotated_stores = []
+        self.rotated_estore_params = rotated_estore_params
+        self.basedir = basedir
 
-        for params in rotated_estore_params:
+        self._openStore()
+        self._populate_store()
+
+    def _init_rotated_stores(self):
+        rotated_stores = []
+        mocked_factories = []
+
+        for params in self.rotated_estore_params:
             if params['prefix']=='logdb':
                 factory = gtdoit.logbook._SQLiteEventStore
             elif params['prefix']=='appendlog':
@@ -120,19 +128,20 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
             fname_absolute = os.path.join(params['dirpath'],
                                           "%s.0" % params['prefix'])
-            factory.assert_called_once_with(fname_absolute)
+
+            # If it wasn't for the fact that this class function was called from
+            # testReopening, we would be able to also assert that the factory
+            # was called with correct parameters.
+            self.assertEqual(factory.call_count, 1)
 
             rotated_stores.append(rotated_store)
 
         self.rotated_stores = rotated_stores
-        self.rotated_estore_params = rotated_estore_params
-        self.basedir = basedir
         self.mocked_factories = mocked_factories
 
-        self._openStore()
-        self._populate_store()
-
     def _openStore(self):
+        self._init_rotated_stores()
+
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         store = gtdoit.logbook.SyncedRotationEventStores(evs_per_batch)
         for rotated_store in self.rotated_stores:
@@ -140,13 +149,16 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self.store = store
 
     def tearDown(self):
-        self.store.close()
+        if self.store is not None:
+            # Only close if no other test has already closed it and assigned it
+            # None.
+            self.store.close()
 
-        # Asserting every single EventStore instantiated has had close() called
-        # upon it.
-        for mocked_factory in self.mocked_factories:
-            for call in mocked_factory.mock_calls:
-                call.return_value.close.assert_called_once_with()
+            # Asserting every single EventStore instantiated has had close()
+            # called upon it.
+            for mocked_factory in self.mocked_factories:
+                for call in mocked_factory.mock_calls:
+                    call.return_value.close.assert_called_once_with()
 
         self.assertTrue(os.path.exists(self.basedir))
         shutil.rmtree(self.basedir)
@@ -168,6 +180,30 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             for key in keys_in_last_batch:
                 self.assertTrue(self.store.key_exists(key),
                                 "Key did not exist: {0}".format(key))
+
+    def _check_md5_is_correct(self, dirpath):
+        print "Directory:", dirpath
+        md5filename = os.path.join(dirpath, 'checksums.md5')
+        self.assertTrue(os.path.exists(md5filename))
+
+        checksums = gtdoit.logbook.KeyValuePersister(md5filename)
+        files = [fname for fname in os.listdir(dirpath) if
+                 fname!='checksums.md5']
+        self.assertEqual(set(files), set(checksums.keys()))
+
+        os.chdir(dirpath)
+        for fname, checksum in checksums.iteritems():
+            hasher = hashlib.md5()
+            with open(fname) as f:
+                gtdoit.logbook._hashfile(f, hasher)
+            self.assertEqual(hasher.hexdigest(), checksum)
+
+    def testMD5WasWritten(self):
+        """Asserting MD5 files were written."""
+        self.store.close()
+        self.store = None
+        for param in self.rotated_estore_params:
+            self._check_md5_is_correct(param['dirpath'])
 
 
 class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
