@@ -441,9 +441,9 @@ class RotatedEventStore(EventStore):
             for not_identified_file in not_identified_files:
                 self.logger.warn(' * %s', not_identified_file)
 
-        if files:
+        if identified_files:
             nprefix = len(prefix) + 1
-            batchnos = [file[nprefix:] for file in files]
+            batchnos = [file[nprefix:] for file in identified_files]
             last_batch = max([int(batchno) for batchno in batchnos])
         else:
             last_batch = 0
