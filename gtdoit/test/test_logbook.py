@@ -88,41 +88,46 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
     EVS_PER_BATCH = 5
 
     def setUp(self):
+        basedir = tempfile.mkdtemp()
         rotated_estore_params = [
             {
-                'dirpath': '/notused/db',
+                'dirpath': os.path.join(basedir, 'db'),
                 'prefix': 'logdb',
             },
             {
-                'dirpath': '/notused/log',
+                'dirpath': os.path.join(basedir, 'log'),
                 'prefix': 'appendlog',
             },
         ]
 
-        memstores = []
-        rotated_memstores = []
-        files_created = {}
-        def memstore_factory_side_effect(fname):
-            if fname not in files_created:
-                memstore = gtdoit.logbook.InMemoryEventStore()
-                memstore.close = mock.Mock()
-                memstores.append(memstore)
-                files_created[fname] = memstore
-            return files_created[fname]
+        mocked_factories = []
+        rotated_stores = []
+
         for params in rotated_estore_params:
-            memstore_factory = mock.Mock()
-            memstore_factory.side_effect = memstore_factory_side_effect
-            with mock.patch('os.mkdir') as mkdir_mock:
-                rotated_memstore = \
-                        gtdoit.logbook.RotatedEventStore(memstore_factory,
-                                                         **params)
-                mkdir_mock.assert_called_once()
+            if params['prefix']=='logdb':
+                factory = gtdoit.logbook._SQLiteEventStore
+            elif params['prefix']=='appendlog':
+                factory = gtdoit.logbook._LogEventStore
+            else:
+                self.fail('Unrecognized prefix.')
+            factory = mock.Mock(wraps=factory)
+            mocked_factories.append(factory)
 
-            rotated_memstores.append(rotated_memstore)
+            with mock.patch('os.mkdir', side_effect=os.mkdir) as mkdir_mock:
+                rotated_store = gtdoit.logbook.RotatedEventStore(factory,
+                                                                 **params)
+                mkdir_mock.assert_called_once(params['dirpath'])
 
-        self.memstores = memstores
-        self.rotated_memstores = rotated_memstores
-        self.files_created = files_created
+            fname_absolute = os.path.join(params['dirpath'],
+                                          "%s.0" % params['prefix'])
+            factory.assert_called_once_with(fname_absolute)
+
+            rotated_stores.append(rotated_store)
+
+        self.rotated_stores = rotated_stores
+        self.rotated_estore_params = rotated_estore_params
+        self.basedir = basedir
+        self.mocked_factories = mocked_factories
 
         self._openStore()
         self._populate_store()
@@ -130,14 +135,22 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
     def _openStore(self):
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         store = gtdoit.logbook.SyncedRotationEventStores(evs_per_batch)
-        for rotated_memstore in self.rotated_memstores:
-            store.add_rotated_store(rotated_memstore)
+        for rotated_store in self.rotated_stores:
+            store.add_rotated_store(rotated_store)
         self.store = store
 
     def tearDown(self):
         self.store.close()
-        for memstore in self.memstores:
-            memstore.close.assert_called_once()
+
+        # Asserting every single EventStore instantiated has had close() called
+        # upon it.
+        for mocked_factory in self.mocked_factories:
+            for call in mocked_factory.mock_calls:
+                call.return_value.close.assert_called_once_with()
+
+        self.assertTrue(os.path.exists(self.basedir))
+        shutil.rmtree(self.basedir)
+        self.assertFalse(os.path.exists(self.basedir))
 
     def testReopening(self):
         events_before_reload = self.store.get_events()
