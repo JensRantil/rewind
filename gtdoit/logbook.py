@@ -534,6 +534,10 @@ class RotatedEventStore(EventStore):
         """Checks whether the key exists in the current event store."""
         return self.estore.key_exists(key)
 
+    def close(self):
+        self.estore.close()
+        self.estore = None
+
 
 class SyncedRotationEventStores(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
