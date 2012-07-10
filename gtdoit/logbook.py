@@ -641,7 +641,8 @@ class SyncedRotationEventStores(EventStore):
             # This check might actually also be done further up in the chain
             # (read: _SQLiteEventStore). Could potentially be removed if it
             # requires a lot of processor cycles.
-            raise EventKeyAlreadyExistError("The key already existed: %s" % key)
+            msg = "The key already existed: %s" % key
+            raise EventStore.EventKeyAlreadyExistError(msg)
 
         self._rotate_files_if_needed()
 
