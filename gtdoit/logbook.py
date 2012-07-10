@@ -439,7 +439,7 @@ class RotatedEventStore(EventStore):
             self.logger.warn("The following files could not be identified"
                              "(lacking prefix '%s'):", prefix)
             for not_identified_file in not_identified_files:
-                logger.warn(' * %s', not_identified_file)
+                self.logger.warn(' * %s', not_identified_file)
 
         if files:
             nprefix = len(prefix) + 1
