@@ -1,6 +1,9 @@
 import argparse
 import base64
+import collections
 import contextlib
+import csv
+import hashlib
 import itertools
 import logging
 import os
@@ -18,6 +21,88 @@ import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
 logger = logging.getLogger(__name__)
 
 
+class KeyValuePersister(collections.MutableMapping):
+    """A persisted append-only MutableMapping implementation."""
+    _delimiter = " "
+
+    class InsertError(Exception):
+        pass
+
+    def __init__(self, filename):
+        self._filename = filename
+        self._open()
+
+    @staticmethod
+    def _actually_populate_keyvals(filename):
+        """Actually read the key/values from a file.
+
+        Raises IOError if the file does not exit etcetera.
+        """
+        keyvals = {}
+        with open(filename, 'rb') as f:
+            for line in f:
+                line = line.strip("\r\n")
+                pieces = line.split(KeyValuePersister._delimiter)
+                if len(pieces) >= 2:
+                    key = pieces[0]
+                    val = KeyValuePersister._delimiter.join(pieces[1:])
+                    keyvals[key] = val
+        return keyvals
+
+    @staticmethod
+    def _read_keyvals(filename):
+        """Read the key/values if the file exists.
+        
+        returns -- a dictionary with key/values, or empty dictionary if the file
+                   does not exist.
+        """
+        if os.path.exists(filename):
+            return KeyValuePersister._actually_populate_keyvals(filename)
+        else:
+            return {}
+
+    def _open(self):
+        keyvals = self._read_keyvals(self._filename)
+
+        rawfile = open(self._filename, 'ab')
+
+        self._keyvals = keyvals
+        self._file = rawfile
+
+    def close(self):
+        self._file.close()
+        self._file = None
+
+    def __delitem__(self, key):
+        raise NotImplementedError('KeyValuePersister is append only.')
+
+    def __getitem__(self, key):
+        return self._keyvals[key]
+
+    def __iter__(self):
+        return iter(self._keyvals)
+
+    def __len__(self):
+        return len(self._keyvals)
+
+    def __setitem__(self, key, val):
+        if self._delimiter in key:
+            msg = "Key contained delimiter: %s" % key
+            raise KeyValuePersister.InsertError(msg)
+        if key in self._keyvals:
+            self._keyvals[key] = val
+            self.close()
+            # Rewriting the whole file serially. Yes, it's a slow operation, but
+            # hey - it's an ascii file
+            with open(self._filename, 'wb') as f:
+                for key, val in self._keyvals.iteritems():
+                    f.write("%s%s%s\n" % (key, self._delimiter, val))
+            self._open()
+        else:
+            self._keyvals[key] = val
+            self._file.write("%s%s%s\n" % (key, self._delimiter, val))
+
+
 class LogBookKeyError(KeyError):
     """Exception thrown if a requested key did not exist."""
     pass
@@ -28,6 +113,11 @@ class LogBookEventOrderError(IndexError):
 
     That is if from-key was generated after to-key.
     """
+    pass
+
+
+class LogBookCorruptionError(Exception):
+    """Exception raised when data seem corrupt."""
     pass
 
 
@@ -101,6 +191,14 @@ class InMemoryEventStore(EventStore):
 class _SQLiteEventStore(EventStore):
     """Stores events in an sqlite database."""
     def __init__(self, path):
+        fname = os.path.basename(path)
+        checksum_persister = _get_checksum_persister(path)
+        hasher = _initialize_hasher(path)
+        if fname in checksum_persister and \
+           checksum_persister[fname] != hasher.hexdigest():
+            msg = "The file '%s' was had wrong md5." % path
+            raise LogBookCorruptionError(msg)
+
         # isolation_level=None => autocommit mode
         self.conn = sqlite3.connect(path, isolation_level=None)
 
@@ -111,6 +209,8 @@ class _SQLiteEventStore(EventStore):
                 event BLOB
             );
         ''');
+
+        self._path = path
 
     def add_event(self, key, event):
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
@@ -172,14 +272,51 @@ class _SQLiteEventStore(EventStore):
             self.conn.close()
             self.conn = None
 
+        fname = os.path.basename(self._path)
+        checksum_persister = _get_checksum_persister(self._path)
+        hasher = _initialize_hasher(self._path)
+        with contextlib.closing(checksum_persister):
+            checksum_persister[fname] = hasher.hexdigest()
+
+
+def _hashfile(afile, hasher, blocksize=65536):
+    buf = afile.read(blocksize)
+    while len(buf) > 0:
+        hasher.update(buf)
+        buf = afile.read(blocksize)
+
+
+def _initialize_hasher(path):
+    hasher = hashlib.md5()
+    if os.path.exists(path):
+        with open(path) as f:
+            _hashfile(f, hasher)
+    return hasher
+
+
+def _get_checksum_persister(path):
+    directory = os.path.dirname(path)
+    checksum_fname = os.path.join(directory, "checksums.md5")
+    checksum_persister = KeyValuePersister(checksum_fname)
+    return checksum_persister
+
 
 class _LogEventStore(EventStore):
     def __init__(self, path):
-        self.path = path
+        self._hasher = _initialize_hasher(path)
+
+        fname = os.path.basename(path)
+        checksum_persister = _get_checksum_persister(path)
+        if fname in checksum_persister and \
+           checksum_persister[fname] != self._hasher.hexdigest():
+            msg = "The file '%s' was had wrong md5." % path
+            raise LogBookCorruptionError(msg)
+        
+        self._path = path
         self._open()
 
     def _open(self):
-        self.f = open(self.path, 'ab')
+        self.f = open(self._path, 'ab')
 
     def _close(self):
         if self.f:
@@ -199,11 +336,12 @@ class _LogEventStore(EventStore):
         data = "{0}\t{1}\n".format(safe_key, safe_event)
         
         # Important to make a single atomic write here
+        self._hasher.update(data)
         self.f.write(data)
 
     def _unsafe_get_events(self, from_, to):
         eventstrs = []
-        with open(self.path) as f:
+        with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             if from_:
                 for line in f:
@@ -238,7 +376,7 @@ class _LogEventStore(EventStore):
 
     def _unsafe_key_exists(self, needle):
         eventstrs = []
-        with open(self.path) as f:
+        with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             for line in f:
                 key, eventstr = line.strip().split("\t")
@@ -258,6 +396,12 @@ class _LogEventStore(EventStore):
             self._open()
 
     def close(self):
+        """Persists a checksum and closes the file."""
+        fname = os.path.basename(self._path)
+        checksum_persister = _get_checksum_persister(self._path)
+        with contextlib.closing(checksum_persister):
+            checksum_persister[fname] = self._hasher.hexdigest()
+
         self._close()
 
 
@@ -295,11 +439,11 @@ class RotatedEventStore(EventStore):
             self.logger.warn("The following files could not be identified"
                              "(lacking prefix '%s'):", prefix)
             for not_identified_file in not_identified_files:
-                logger.warn(' * %s', not_identified_file)
+                self.logger.warn(' * %s', not_identified_file)
 
-        if files:
+        if identified_files:
             nprefix = len(prefix) + 1
-            batchnos = [file[nprefix:] for file in files]
+            batchnos = [file[nprefix:] for file in identified_files]
             last_batch = max([int(batchno) for batchno in batchnos])
         else:
             last_batch = 0
@@ -390,8 +534,12 @@ class RotatedEventStore(EventStore):
         """Checks whether the key exists in the current event store."""
         return self.estore.key_exists(key)
 
+    def close(self):
+        self.estore.close()
+        self.estore = None
 
-class RotationEventStore(EventStore):
+
+class SyncedRotationEventStores(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
     
     Rotation is done at the same time for all event stores to make sure they are
@@ -405,7 +553,9 @@ class RotationEventStore(EventStore):
         
         Parameters:
         events_per_batch -- number of events stored in a batch before rotating
-                            the files.
+                            the files. Defaults to 25000. That number is
+                            arbitrary and should probably be configures so that
+                            files do not grow out of proportion.
         """
         assert type(events_per_batch) is types.IntType, \
                 "Events per batch must be integer."
@@ -417,6 +567,8 @@ class RotationEventStore(EventStore):
         # TODO: Test that 'md5sum' exists
 
     def add_rotated_store(self, rotated_store):
+        assert self.count == 0, \
+                "Must not have written before adding additional estores"
         self.stores.append(rotated_store)
 
     def _rotate_files_if_needed(self):
@@ -447,12 +599,12 @@ class RotationEventStore(EventStore):
 
         TODO: Test.
         """
-        RotationEventStore._test_log_filename_format(logpath)
-        RotationEventStore._test_db_filename_format(dbpath)
+        SyncedRotationEventStores._test_log_filename_format(logpath)
+        SyncedRotationEventStores._test_db_filename_format(dbpath)
 
         # Simply shortened constants
-        dbprefix = RotationEventStore.DATABASE_PREFIX
-        logprefix = RotationEventStore.LOG_PREFIX
+        dbprefix = SyncedRotationEventStores.DATABASE_PREFIX
+        logprefix = SyncedRotationEventStores.LOG_PREFIX
 
         dbfiles = os.listdir(dbpath)
         logfiles = os.listdir(logpath)
@@ -471,16 +623,16 @@ class RotationEventStore(EventStore):
             if not logfile_exists:
                 logger.warn("Integrity issue. Missing file: %s", logfile)
             if not dbfile_exists:
-                RotationEventStore.IntegrityError("Missing file: %s",
+                SyncedRotationEventStores.IntegrityError("Missing file: %s",
                                                    dbfile)
             if not logfile_exists:
-                RotationEventStore.IntegrityError("Missing file: %s",
+                SyncedRotationEventStores.IntegrityError("Missing file: %s",
                                                    logfile)
             if not os.path.isfile(dbfile):
-                RotationEventStore.IntegrityError("Not regular file: %s",
+                SyncedRotationEventStores.IntegrityError("Not regular file: %s",
                                                    dbfile)
             if not os.path.isfile(logfile):
-                RotationEventStore.IntegrityError("Not regular file: %s",
+                SyncedRotationEventStores.IntegrityError("Not regular file: %s",
                                                    logfile)
 
             # TODO: Recreate database from log if it seems corrupt.
@@ -493,7 +645,8 @@ class RotationEventStore(EventStore):
             # This check might actually also be done further up in the chain
             # (read: _SQLiteEventStore). Could potentially be removed if it
             # requires a lot of processor cycles.
-            raise EventKeyAlreadyExistError("The key already existed: %s" % key)
+            msg = "The key already existed: %s" % key
+            raise EventStore.EventKeyAlreadyExistError(msg)
 
         self._rotate_files_if_needed()
 
@@ -611,7 +764,7 @@ class LogBookRunner(object):
 
             # Since we are using ZeroMQ enveloping we want to cap the
             # maximum number of messages that are send for each request.
-            # Otherwise we might run out of memory for a lot of memory.
+            # Otherwise we might run out of memory for a lot of events.
             MAX_ELMNTS_PER_REQ = 100
             events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
             events = list(events)
@@ -668,7 +821,7 @@ def run(args):
                                                'appendlog')
 
         EVENTS_PER_BATCH = 30000
-        eventstore = RotationEventStore(EVENTS_PER_BATCH)
+        eventstore = SyncedRotationEventStores(EVENTS_PER_BATCH)
 
         # Important DB event store is added first. Otherwise, fast event
         # querying will not be enabled.

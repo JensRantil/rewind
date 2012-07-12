@@ -1,6 +1,7 @@
 import contextlib
 import itertools
 import random
+import hashlib
 import shutil
 import sys
 import tempfile
@@ -81,63 +82,87 @@ class TestEventStore(unittest.TestCase):
         estore.close() # Should not throw anything
 
 
-class TestRotationEventStore(unittest.TestCase, _TestEventStore):
-    """Test `RotationEventStore`."""
+class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
+    """Test `SyncedRotationEventStores`."""
 
     # Number of events per batch
     EVS_PER_BATCH = 5
 
     def setUp(self):
+        basedir = tempfile.mkdtemp()
         rotated_estore_params = [
             {
-                'dirpath': '/notused/db',
+                'dirpath': os.path.join(basedir, 'db'),
                 'prefix': 'logdb',
             },
             {
-                'dirpath': '/notused/log',
+                'dirpath': os.path.join(basedir, 'log'),
                 'prefix': 'appendlog',
             },
         ]
 
-        memstores = []
-        rotated_memstores = []
-        files_created = {}
-        for params in rotated_estore_params:
-            def memstore_factory_side_effect(fname):
-                if fname not in files_created:
-                    memstore = gtdoit.logbook.InMemoryEventStore()
-                    memstore.close = mock.Mock()
-                    memstores.append(memstore)
-                    files_created[fname] = memstore
-                return files_created[fname]
-            memstore_factory = mock.Mock()
-            memstore_factory.side_effect = memstore_factory_side_effect
-            with mock.patch('os.mkdir') as mkdir_mock:
-                rotated_memstore = \
-                        gtdoit.logbook.RotatedEventStore(memstore_factory,
-                                                         **params)
-                mkdir_mock.assert_called_once()
-
-            rotated_memstores.append(rotated_memstore)
-
-        self.memstores = memstores
-        self.rotated_memstores = rotated_memstores
-        self.files_created = files_created
+        self.rotated_estore_params = rotated_estore_params
+        self.basedir = basedir
 
         self._openStore()
         self._populate_store()
 
+    def _init_rotated_stores(self):
+        rotated_stores = []
+        mocked_factories = []
+
+        for params in self.rotated_estore_params:
+            if params['prefix']=='logdb':
+                factory = gtdoit.logbook._SQLiteEventStore
+            elif params['prefix']=='appendlog':
+                factory = gtdoit.logbook._LogEventStore
+            else:
+                self.fail('Unrecognized prefix.')
+            factory = mock.Mock(wraps=factory)
+            mocked_factories.append(factory)
+
+            with mock.patch('os.mkdir', side_effect=os.mkdir) as mkdir_mock:
+                rotated_store = gtdoit.logbook.RotatedEventStore(factory,
+                                                                 **params)
+                mkdir_mock.assert_called_once(params['dirpath'])
+
+            fname_absolute = os.path.join(params['dirpath'],
+                                          "%s.0" % params['prefix'])
+
+            # If it wasn't for the fact that this class function was called from
+            # testReopening, we would be able to also assert that the factory
+            # was called with correct parameters.
+            self.assertEqual(factory.call_count, 1)
+
+            rotated_stores.append(rotated_store)
+
+        self.rotated_stores = rotated_stores
+        self.mocked_factories = mocked_factories
+
     def _openStore(self):
-        evs_per_batch = TestRotationEventStore.EVS_PER_BATCH
-        store = gtdoit.logbook.RotationEventStore(evs_per_batch)
-        for rotated_memstore in self.rotated_memstores:
-            store.add_rotated_store(rotated_memstore)
+        self._init_rotated_stores()
+
+        evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
+        store = gtdoit.logbook.SyncedRotationEventStores(evs_per_batch)
+        for rotated_store in self.rotated_stores:
+            store.add_rotated_store(rotated_store)
         self.store = store
 
     def tearDown(self):
-        self.store.close()
-        for memstore in self.memstores:
-            memstore.close.assert_called_once()
+        if self.store is not None:
+            # Only close if no other test has already closed it and assigned it
+            # None.
+            self.store.close()
+
+            # Asserting every single EventStore instantiated has had close()
+            # called upon it.
+            for mocked_factory in self.mocked_factories:
+                for call in mocked_factory.mock_calls:
+                    call.return_value.close.assert_called_once_with()
+
+        self.assertTrue(os.path.exists(self.basedir))
+        shutil.rmtree(self.basedir)
+        self.assertFalse(os.path.exists(self.basedir))
 
     def testReopening(self):
         events_before_reload = self.store.get_events()
@@ -147,7 +172,7 @@ class TestRotationEventStore(unittest.TestCase, _TestEventStore):
         self.assertEqual(list(events_before_reload), list(events_after_reload))
         
     def testKeyExists(self):
-        evs_per_batch = TestRotationEventStore.EVS_PER_BATCH
+        evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
         if nkeys_in_last_batch > 0:
             # No reasons to test if there were no events written to this batch
@@ -155,6 +180,30 @@ class TestRotationEventStore(unittest.TestCase, _TestEventStore):
             for key in keys_in_last_batch:
                 self.assertTrue(self.store.key_exists(key),
                                 "Key did not exist: {0}".format(key))
+
+    def _check_md5_is_correct(self, dirpath):
+        print "Directory:", dirpath
+        md5filename = os.path.join(dirpath, 'checksums.md5')
+        self.assertTrue(os.path.exists(md5filename))
+
+        checksums = gtdoit.logbook.KeyValuePersister(md5filename)
+        files = [fname for fname in os.listdir(dirpath) if
+                 fname!='checksums.md5']
+        self.assertEqual(set(files), set(checksums.keys()))
+
+        os.chdir(dirpath)
+        for fname, checksum in checksums.iteritems():
+            hasher = hashlib.md5()
+            with open(fname) as f:
+                gtdoit.logbook._hashfile(f, hasher)
+            self.assertEqual(hasher.hexdigest(), checksum)
+
+    def testMD5WasWritten(self):
+        """Asserting MD5 files were written."""
+        self.store.close()
+        self.store = None
+        for param in self.rotated_estore_params:
+            self._check_md5_is_correct(param['dirpath'])
 
 
 class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
@@ -273,11 +322,14 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                         "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
 
-    def testReopenWithoutClose(self):
-        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
-        self.assertEqual(len(self.keys), len(self.vals),
-                        "Keys and vals did not match in number.")
-        self.assertEqual(len(self.store.get_events(),), len(self.keys))
+    def testCorruptionCheckOnOpen(self):
+        """Asserting we identify corrupt `LogEventStore` files."""
+        self.store.close()
+        with open(self.tempfile.name, 'wb') as f:
+            f.write("Random data %%%!!!??")
+        self.assertRaises(gtdoit.logbook.LogBookCorruptionError,
+                          gtdoit.logbook._LogEventStore,
+                          self.tempfile.name)
 
     def tearDown(self):
         self.store.close()
@@ -301,18 +353,21 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.assertTrue(self.store.count() == len(self.keys),
                         "Count was incorrect.")
 
-    def testReopenWithoutClose(self):
-        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
-
-        # testCount does exactly the test we want to do. Reusing it.
-        self.testCount()
-
     def testReopenWithClose(self):
         self.store.close()
         self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
+
+    def testCorruptionCheckOnOpen(self):
+        """Asserting we identify corrupt `_SQLiteEventStore` files."""
+        self.store.close()
+        with open(self.tempfile.name, 'wb') as f:
+            f.write("Random data %%%!!!??")
+        self.assertRaises(gtdoit.logbook.LogBookCorruptionError,
+                          gtdoit.logbook._SQLiteEventStore,
+                          self.tempfile.name)
 
     def tearDown(self):
         self.store.close()
@@ -635,3 +690,116 @@ class TestLogbookQuerying(unittest.TestCase):
                          "Logbook should not have been running. It was.")
 
         self.context.term()
+
+
+class TestKeyValuePersister(unittest.TestCase):
+    keyvals = {
+        'key1': 'val1',
+        'key2': 'value number two',
+        'key3': 'val3',
+    }
+
+    def setUp(self):
+        namedfile = tempfile.NamedTemporaryFile(delete=False)
+        self.keyvalfile = namedfile.name
+        keyvalpersister = self._open_persister()
+
+        self.namedfile = namedfile
+        self.keyvalpersister = keyvalpersister
+
+    def _open_persister(self):
+        return gtdoit.logbook.KeyValuePersister(self.keyvalfile)
+
+    def tearDown(self):
+        if self.keyvalpersister:
+            self.keyvalpersister.close()
+            self.keyvalpersister = None
+        self.namedfile.close()
+        self.keyvalfile = None
+        self.namedfile = None
+
+    def _write_keyvals(self):
+        for key, val in self.keyvals.iteritems():
+            self.keyvalpersister[key] = val
+
+    def _assertValuesWereWritten(self):
+        for key, val in self.keyvals.iteritems():
+            self.assertTrue(key in self.keyvalpersister)
+            self.assertEqual(self.keyvalpersister[key], val)
+        self.assertEqual(len(self.keyvalpersister), len(self.keyvals))
+
+    def testAppending(self):
+        self._write_keyvals()
+        self._assertValuesWereWritten()
+
+    def _assert_delimieter_key_exception(self):
+        faulty_keys = ["a key", "key ", " key"]
+        for key in faulty_keys:
+            self.assertRaises(gtdoit.logbook.KeyValuePersister.InsertError,
+                              lambda x,y: self.keyvalpersister.__setitem__(x,y),
+                              key, "5")
+
+    def testAppendingKeyContainingDelimiter(self):
+        self._assert_delimieter_key_exception()
+        self.assertEqual(len(self.keyvalpersister), 0)
+
+    def testWritingAfterInsertError(self):
+        self.testAppendingKeyContainingDelimiter()
+        self._write_keyvals()
+        self._assert_delimieter_key_exception()
+        self.assertEqual(len(self.keyvalpersister), 3)
+        self._assertValuesWereWritten()
+
+    def testReopen(self):
+        self._write_keyvals()
+        self._assertValuesWereWritten()
+        for i in range(3):
+            self.keyvalpersister.close()
+            self.keyvalpersister = self._open_persister()
+            self._assertValuesWereWritten()
+
+    def testIter(self):
+        self._write_keyvals()
+        vals = iter(self.keyvalpersister)
+        self.assertEqual(set(vals), set(self.keyvals))
+
+    def testChangingValue(self):
+        self._write_keyvals()
+
+        # Changing value of the first key
+        first_key = self.keyvals.keys()[0]
+        new_value = "56"
+        self.assertNotEqual(self.keyvalpersister[first_key], new_value)
+        self.keyvalpersister[first_key] = new_value
+
+        self.assertEqual(self.keyvalpersister[first_key], new_value)
+
+    def testDelItem(self):
+        """Test __delitem__ behaviour.
+
+        __delitem__ is not really used, but we want to keep 100% coverage,
+        so...
+        """
+        self.assertRaises(NotImplementedError, self.keyvalpersister.__delitem__,
+                          self.keyvals.keys()[0])
+
+    def testFileOutput(self):
+        """Making sure we are writing in md5sum format."""
+        self._write_keyvals()
+
+        self.keyvalpersister.close()
+        self.keyvalpersister = None # Needed so tearDown doesn't close
+
+        with open(self.keyvalfile) as f:
+            content = f.read()
+            actual_lines = content.splitlines()
+            expected_lines = ["%s %s" % (k,v)
+                              for k,v in self.keyvals.iteritems()]
+        self.assertEquals(actual_lines, expected_lines)
+
+    def testOpeningNonExistingFile(self):
+        randomfile = tempfile.NamedTemporaryFile()
+        randomfile.close()
+        self.assertFalse(os.path.exists(randomfile.name),
+                         "Expected file to not exist.")
+        gtdoit.logbook.KeyValuePersister(randomfile.name)
