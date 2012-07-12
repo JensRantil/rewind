@@ -196,7 +196,7 @@ class _SQLiteEventStore(EventStore):
         hasher = _initialize_hasher(path)
         if fname in checksum_persister and \
            checksum_persister[fname] != hasher.hexdigest():
-            msg = "The file '%s' was had wrong md5." % path
+            msg = "The file '%s' had wrong md5 checksum." % path
             raise LogBookCorruptionError(msg)
 
         # isolation_level=None => autocommit mode
