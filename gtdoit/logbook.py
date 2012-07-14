@@ -429,7 +429,9 @@ class RotatedEventStore(EventStore):
     def _determine_batchno(self):
         dirpath = self.dirpath
         prefix = self.prefix
-        files = os.listdir(dirpath)
+        ignored_files = set(['checksums.md5'])
+        files = [fname for fname in os.listdir(dirpath)
+                 if fname not in ignored_files]
 
         identified_files = [fname for fname in files
                             if fname.startswith(prefix+'.')]
@@ -437,7 +439,7 @@ class RotatedEventStore(EventStore):
                                 if not fname.startswith(prefix+'.')]
         if not_identified_files:
             self.logger.warn("The following files could not be identified"
-                             "(lacking prefix '%s'):", prefix)
+                             " (lacking prefix '%s'):", prefix)
             for not_identified_file in not_identified_files:
                 self.logger.warn(' * %s', not_identified_file)
 
