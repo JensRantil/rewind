@@ -191,10 +191,10 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
                  fname!='checksums.md5']
         self.assertEqual(set(files), set(checksums.keys()))
 
-        os.chdir(dirpath)
         for fname, checksum in checksums.iteritems():
             hasher = hashlib.md5()
-            with open(fname) as f:
+            abspath = os.path.join(dirpath, fname)
+            with open(abspath) as f:
                 gtdoit.logbook._hashfile(f, hasher)
             self.assertEqual(hasher.hexdigest(), checksum)
 
