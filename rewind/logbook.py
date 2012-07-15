@@ -14,8 +14,8 @@ import uuid
 
 import zmq
 
-import gtdoit.messages.events_pb2 as events_pb2
-import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
+import rewind.messages.events_pb2 as events_pb2
+import rewind.messages.eventhandling_pb2 as eventhandling_pb2
 
 
 logger = logging.getLogger(__name__)

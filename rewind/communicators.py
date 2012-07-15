@@ -1,7 +1,7 @@
 """Classes used to simplify communication between different components."""
 import zmq
 
-import gtdoit.messages.eventhandling_pb2 as eventhandling_pb2
+import rewind.messages.eventhandling_pb2 as eventhandling_pb2
 
 
 class EventQuerier(object):

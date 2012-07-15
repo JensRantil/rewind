@@ -9,14 +9,14 @@ tests_require = [
 ]
 
 setup(
-    name='GTDoit',
+    name='rewind',
     version='0.1dev',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='LICENSE.txt',
     packages=[
-        'gtdoit',
-        'gtdoit.test'
+        'rewind',
+        'rewind.test'
     ],
     long_description=open('README.txt').read(),
     setup_requires=[
@@ -28,10 +28,10 @@ setup(
         "pyzmq==2.2.0",
     ],
     tests_require=tests_require,
-    test_suite="gtdoit.test",
+    test_suite="rewind.test",
     entry_points={
         'console_scripts': [
-            'logbook = gtdoit.logbook:main',
+            'logbook = rewind.logbook:main',
         ]
     },
 )

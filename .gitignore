@@ -1,5 +1,5 @@
 # Created by `./setup.py develop`
-GTDoit.egg-info
+rewind.egg-info
 
 # Created by `./setup.py test`
 *.egg

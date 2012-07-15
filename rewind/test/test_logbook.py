@@ -14,9 +14,9 @@ import os
 import mock
 import zmq
 
-import gtdoit.communicators as communicators
-import gtdoit.logbook
-import gtdoit.messages.events_pb2 as events_pb2
+import rewind.communicators as communicators
+import rewind.logbook as logbook
+import rewind.messages.events_pb2 as events_pb2
 
 
 class _TestEventStore:
@@ -73,7 +73,7 @@ class TestEventStore(unittest.TestCase):
     """Tests the class `EventStore`."""
     def testStubs(self):
         """Makes sure `EventStore` behaves the way we expect."""
-        estore = gtdoit.logbook.EventStore()
+        estore = logbook.EventStore()
         self.assertRaises(NotImplementedError, estore.add_event, "key", "event")
         self.assertRaises(NotImplementedError, estore.get_events)
         self.assertRaises(NotImplementedError, estore.get_events, "from")
@@ -113,16 +113,16 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
         for params in self.rotated_estore_params:
             if params['prefix']=='logdb':
-                factory = gtdoit.logbook._SQLiteEventStore
+                factory = logbook._SQLiteEventStore
             elif params['prefix']=='appendlog':
-                factory = gtdoit.logbook._LogEventStore
+                factory = logbook._LogEventStore
             else:
                 self.fail('Unrecognized prefix.')
             factory = mock.Mock(wraps=factory)
             mocked_factories.append(factory)
 
             with mock.patch('os.mkdir', side_effect=os.mkdir) as mkdir_mock:
-                rotated_store = gtdoit.logbook.RotatedEventStore(factory,
+                rotated_store = logbook.RotatedEventStore(factory,
                                                                  **params)
                 mkdir_mock.assert_called_once(params['dirpath'])
 
@@ -143,7 +143,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self._init_rotated_stores()
 
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
-        store = gtdoit.logbook.SyncedRotationEventStores(evs_per_batch)
+        store = logbook.SyncedRotationEventStores(evs_per_batch)
         for rotated_store in self.rotated_stores:
             store.add_rotated_store(rotated_store)
         self.store = store
@@ -186,7 +186,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         md5filename = os.path.join(dirpath, 'checksums.md5')
         self.assertTrue(os.path.exists(md5filename))
 
-        checksums = gtdoit.logbook.KeyValuePersister(md5filename)
+        checksums = logbook.KeyValuePersister(md5filename)
         files = [fname for fname in os.listdir(dirpath) if
                  fname!='checksums.md5']
         self.assertEqual(set(files), set(checksums.keys()))
@@ -195,7 +195,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             hasher = hashlib.md5()
             abspath = os.path.join(dirpath, fname)
             with open(abspath) as f:
-                gtdoit.logbook._hashfile(f, hasher)
+                logbook._hashfile(f, hasher)
             self.assertEqual(hasher.hexdigest(), checksum)
 
     def testMD5WasWritten(self):
@@ -214,28 +214,28 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         """
         N = 20
 
-        mstore1 = gtdoit.logbook.InMemoryEventStore()
+        mstore1 = logbook.InMemoryEventStore()
         mstore1.close = mock.MagicMock() # Needed for assertions
         keys1 = [str(i) for i in range(N)]
         vals1 = [str(i+30) for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
-        mstore2 = gtdoit.logbook.InMemoryEventStore()
+        mstore2 = logbook.InMemoryEventStore()
         mstore2.close = mock.MagicMock() # Needed for assertions
         keys2 = [str(i+N) for i in range(N)]
         vals2 = [str(i+30+N) for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 
-        mstore3 = gtdoit.logbook.InMemoryEventStore()
+        mstore3 = logbook.InMemoryEventStore()
         mstore3.close = mock.MagicMock() # Needed for assertions
         keys3 = ['one', 'two', 'three']
         vals3 = ['four', 'five', 'six']
         for key, val in zip(keys3, vals3):
             mstore3.add_event(key, val)
 
-        mstore4 = gtdoit.logbook.InMemoryEventStore()
+        mstore4 = logbook.InMemoryEventStore()
 
         def es_factory(fname):
             """Pretends to open an event store from a filename."""
@@ -252,7 +252,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
                 mock.patch('os.listdir') as listdir_mock:
             exists_mock.return_value = True
             listdir_mock.return_value = ['eventdb.0', 'eventdb.1', 'eventdb.2']
-            store = gtdoit.logbook.RotatedEventStore(estore_factory,
+            store = logbook.RotatedEventStore(estore_factory,
                                                      '/random_dir',
                                                      'eventdb')
             exists_mock.assert_called_with('/random_dir')
@@ -311,13 +311,13 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                                                     suffix='.log',
                                                     delete=False)
         self.tempfile.close() # We are not to modify it directly
-        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
+        self.store = logbook._LogEventStore(self.tempfile.name)
         
         self._populate_store()
     
     def testReopenWithClose(self):
         self.store.close()
-        self.store = gtdoit.logbook._LogEventStore(self.tempfile.name)
+        self.store = logbook._LogEventStore(self.tempfile.name)
         self.assertEqual(len(self.keys), len(self.vals),
                         "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
@@ -327,8 +327,8 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write("Random data %%%!!!??")
-        self.assertRaises(gtdoit.logbook.LogBookCorruptionError,
-                          gtdoit.logbook._LogEventStore,
+        self.assertRaises(logbook.LogBookCorruptionError,
+                          logbook._LogEventStore,
                           self.tempfile.name)
 
     def tearDown(self):
@@ -343,7 +343,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
                                                     suffix='sqlite_evstore',
                                                     delete=False)
         self.tempfile.close() # We are not to modify it directly
-        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
+        self.store = logbook._SQLiteEventStore(self.tempfile.name)
         
         self._populate_store()
 
@@ -355,7 +355,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
     def testReopenWithClose(self):
         self.store.close()
-        self.store = gtdoit.logbook._SQLiteEventStore(self.tempfile.name)
+        self.store = logbook._SQLiteEventStore(self.tempfile.name)
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
@@ -365,8 +365,8 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write("Random data %%%!!!??")
-        self.assertRaises(gtdoit.logbook.LogBookCorruptionError,
-                          gtdoit.logbook._SQLiteEventStore,
+        self.assertRaises(logbook.LogBookCorruptionError,
+                          logbook._SQLiteEventStore,
                           self.tempfile.name)
 
     def tearDown(self):
@@ -377,7 +377,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
     """Test `InMemoryEventStore`."""
     def setUp(self):
-        self.store = gtdoit.logbook.InMemoryEventStore()
+        self.store = logbook.InMemoryEventStore()
         self._populate_store()
 
 
@@ -474,7 +474,7 @@ class _LogbookThread(threading.Thread):
 
         def exitcode_runner(*args, **kwargs):
             try:
-                thread.exit_code = gtdoit.logbook.main(*args, **kwargs)
+                thread.exit_code = logbook.main(*args, **kwargs)
             except SystemExit as e:
                 thread.exit_code = e.code
             else:
@@ -708,7 +708,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister = keyvalpersister
 
     def _open_persister(self):
-        return gtdoit.logbook.KeyValuePersister(self.keyvalfile)
+        return logbook.KeyValuePersister(self.keyvalfile)
 
     def tearDown(self):
         if self.keyvalpersister:
@@ -735,7 +735,7 @@ class TestKeyValuePersister(unittest.TestCase):
     def _assert_delimieter_key_exception(self):
         faulty_keys = ["a key", "key ", " key"]
         for key in faulty_keys:
-            self.assertRaises(gtdoit.logbook.KeyValuePersister.InsertError,
+            self.assertRaises(logbook.KeyValuePersister.InsertError,
                               lambda x,y: self.keyvalpersister.__setitem__(x,y),
                               key, "5")
 
@@ -802,4 +802,4 @@ class TestKeyValuePersister(unittest.TestCase):
         randomfile.close()
         self.assertFalse(os.path.exists(randomfile.name),
                          "Expected file to not exist.")
-        gtdoit.logbook.KeyValuePersister(randomfile.name)
+        logbook.KeyValuePersister(randomfile.name)
