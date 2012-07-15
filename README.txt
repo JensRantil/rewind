@@ -1,14 +1,30 @@
-======
-GTDoit
-======
+=======
+Rewind
+=======
 
-GTDoit is a task manager based on David Allen's book Getting Things Done
-(abbreviated GTD). It is based on event sourcing and uses ZeroMQ for
-communication between the different modules.
+Have you ever been nervous of all those DBMSs schema changes when you
+are deploying your applications? they are gonna take too long, or break
+backward compatibility? Have you ever thought "Crap, I wish I had stored
+that information since earlier"? Have you ever felt your writing
+patterns and your reading patterns differ a lot, making things harder to
+scale?
+
+CQRS (Command-Query Response Segregation) is an architectural pattern that has been gaining a lot of interest
+that aims to solve these issues. 
+
+`rewind` is an event store application that talks ZeroMQ. It is written
+in Python and supports mutliple backends.
+
+Installing
+==========
+TODO: Rewind will soon end up no PyPi.
+
+Talking to `rewind`
+===================
 
 Developing
 ==========
-Getting started developing `gtdoit` is quite straightforward. The
+Getting started developing `rewind` is quite straightforward. The
 library uses `setuptools` and standard Python project layout for tests
 etcetera.
 
@@ -17,16 +33,16 @@ Checking out
 To start developing you need to install the ZeroMQ library on your system
 beforehand.
 
-This is how you check out the `gtdoit` library into a virtual environment:
+This is how you check out the `rewind` library into a virtual environment:
 
     cd <your development directory>
-    virtualenv --note-site-packages gtdoit
-    cd gtdoit
-    git clone http://<gtdoit GIT URL> src
+    virtualenv --note-site-packages rewind
+    cd rewind
+    git clone http://<rewind GIT URL> src
 
 Workin' the code
 ----------------
-Every time you want to work on `gtdoit` you want to change directory
+Every time you want to work on `rewind` you want to change directory
 into the source folder and activate the virtual environment scope (so
 that you don't touch the global Python environment):
 
@@ -52,22 +68,19 @@ code. That way you know nothing was broken beforehand.
 
 Helping out
 ===========
-Spelling mistakes, bad grammar, test improvements and other feature
-additions are all welcome. Please issue pull requests or create an
-issue if you'd like to discuss it on Github.
+Spelling mistakes, bad grammar, new storage backends, test improvements
+and other feature additions are all welcome. Please issue pull requests
+or create an issue if you'd like to discuss it on Github.
 
 Architecture <stub>
 ===================
 
-The `logbook`
--------------
-The `gtdoit` is based on the CQRS model and uses event sourcing for
-storing all state changes of the system. The `logbook` server is
-responsible for receiving, forwarding and storing all events. It uses
-event stores for this. This means that as long as `logbook` is running
-events will be stored securely in the system.
-
-TODO: More to come!
+Why the name `rewind`?
+=============
+ * `rewind` can look at what happened in the past and replay the events
+   since then.
+ * it's time to rewind and rethink the way we are overusing DBMS and
+   storing our data.
 
 Author
 ======
