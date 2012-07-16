@@ -1,5 +1,4 @@
 package eventstreaming;
-import "events.proto";
 
 message EventRequest {
 	required EventRequestType type = 1;
@@ -19,6 +18,6 @@ message EventStreamRangeRequest {
 
 message StoredEvent {
 	required string eventid = 1;
-	required events.Event event = 2;
+	required bytes event = 2;
 }
 

@@ -7,12 +7,11 @@ from google.protobuf import descriptor_pb2
 # @@protoc_insertion_point(imports)
 
 
-import events_pb2
 
 DESCRIPTOR = descriptor.FileDescriptor(
   name='eventhandling.proto',
   package='eventstreaming',
-  serialized_pb='\n\x13\x65venthandling.proto\x12\x0e\x65ventstreaming\x1a\x0c\x65vents.proto\"\xb7\x01\n\x0c\x45ventRequest\x12;\n\x04type\x18\x01 \x02(\x0e\x32-.eventstreaming.EventRequest.EventRequestType\x12<\n\x0b\x65vent_range\x18\x02 \x01(\x0b\x32\'.eventstreaming.EventStreamRangeRequest\",\n\x10\x45ventRequestType\x12\x18\n\x14RANGE_STREAM_REQUEST\x10\x02\"2\n\x17\x45ventStreamRangeRequest\x12\x0b\n\x03\x66ro\x18\x01 \x01(\t\x12\n\n\x02to\x18\x02 \x01(\t\"<\n\x0bStoredEvent\x12\x0f\n\x07\x65ventid\x18\x01 \x02(\t\x12\x1c\n\x05\x65vent\x18\x02 \x02(\x0b\x32\r.events.Event')
+  serialized_pb='\n\x13\x65venthandling.proto\x12\x0e\x65ventstreaming\"\xb7\x01\n\x0c\x45ventRequest\x12;\n\x04type\x18\x01 \x02(\x0e\x32-.eventstreaming.EventRequest.EventRequestType\x12<\n\x0b\x65vent_range\x18\x02 \x01(\x0b\x32\'.eventstreaming.EventStreamRangeRequest\",\n\x10\x45ventRequestType\x12\x18\n\x14RANGE_STREAM_REQUEST\x10\x02\"2\n\x17\x45ventStreamRangeRequest\x12\x0b\n\x03\x66ro\x18\x01 \x01(\t\x12\n\n\x02to\x18\x02 \x01(\t\"-\n\x0bStoredEvent\x12\x0f\n\x07\x65ventid\x18\x01 \x02(\t\x12\r\n\x05\x65vent\x18\x02 \x02(\x0c')
 
 
 
@@ -29,8 +28,8 @@ _EVENTREQUEST_EVENTREQUESTTYPE = descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=193,
-  serialized_end=237,
+  serialized_start=179,
+  serialized_end=223,
 )
 
 
@@ -65,8 +64,8 @@ _EVENTREQUEST = descriptor.Descriptor(
   options=None,
   is_extendable=False,
   extension_ranges=[],
-  serialized_start=54,
-  serialized_end=237,
+  serialized_start=40,
+  serialized_end=223,
 )
 
 
@@ -100,8 +99,8 @@ _EVENTSTREAMRANGEREQUEST = descriptor.Descriptor(
   options=None,
   is_extendable=False,
   extension_ranges=[],
-  serialized_start=239,
-  serialized_end=289,
+  serialized_start=225,
+  serialized_end=275,
 )
 
 
@@ -121,8 +120,8 @@ _STOREDEVENT = descriptor.Descriptor(
       options=None),
     descriptor.FieldDescriptor(
       name='event', full_name='eventstreaming.StoredEvent.event', index=1,
-      number=2, type=11, cpp_type=10, label=2,
-      has_default_value=False, default_value=None,
+      number=2, type=12, cpp_type=9, label=2,
+      has_default_value=False, default_value="",
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -135,14 +134,13 @@ _STOREDEVENT = descriptor.Descriptor(
   options=None,
   is_extendable=False,
   extension_ranges=[],
-  serialized_start=291,
-  serialized_end=351,
+  serialized_start=277,
+  serialized_end=322,
 )
 
 _EVENTREQUEST.fields_by_name['type'].enum_type = _EVENTREQUEST_EVENTREQUESTTYPE
 _EVENTREQUEST.fields_by_name['event_range'].message_type = _EVENTSTREAMRANGEREQUEST
 _EVENTREQUEST_EVENTREQUESTTYPE.containing_type = _EVENTREQUEST;
-_STOREDEVENT.fields_by_name['event'].message_type = events_pb2._EVENT
 DESCRIPTOR.message_types_by_name['EventRequest'] = _EVENTREQUEST
 DESCRIPTOR.message_types_by_name['EventStreamRangeRequest'] = _EVENTSTREAMRANGEREQUEST
 DESCRIPTOR.message_types_by_name['StoredEvent'] = _STOREDEVENT
