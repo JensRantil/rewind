@@ -31,7 +31,7 @@ setup(
     test_suite="rewind.test",
     entry_points={
         'console_scripts': [
-            'logbook = rewind.logbook:main',
+            'rewind = rewind.logbook:main',
         ]
     },
 )
