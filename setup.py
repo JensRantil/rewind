@@ -13,7 +13,7 @@ setup(
     version='0.1dev',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
-    license='LICENSE.txt',
+    license='GNU AGPL, version 3',
     packages=[
         'rewind',
         'rewind.test'
