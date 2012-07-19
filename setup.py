@@ -18,7 +18,7 @@ setup(
         'rewind',
         'rewind.test'
     ],
-    long_description=open('README.txt').read(),
+    long_description=open('README.rst').read(),
     setup_requires=[
         'nose>=1.0',
         'coverage==3.5.1',
