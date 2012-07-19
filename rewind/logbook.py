@@ -768,6 +768,7 @@ class LogBookRunner(object):
             # maximum number of messages that are send for each request.
             # Otherwise we might run out of memory for a lot of events.
             MAX_ELMNTS_PER_REQ = 100
+
             events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
             events = list(events)
             if len(events)==MAX_ELMNTS_PER_REQ+1:
