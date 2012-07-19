@@ -761,7 +761,15 @@ class LogBookRunner(object):
         if request.type == request_types.RANGE_STREAM_REQUEST:
             fro = request.event_range.fro
             to = request.event_range.to
-            events = self.eventstore.get_events(from_=fro, to=to)
+            logging.debug("Incoming query: (from, to)=(%s, %s)" % (fro, to))
+
+            try:
+                events = self.eventstore.get_events(from_=fro, to=to)
+            except EventStore.EventKeyDoesNotExistError as e:
+                logger.exception("A client requested a key that does not"
+                                 " exist:")
+                self.query_socket.send("ERROR")
+                return True
 
             # Since we are using ZeroMQ enveloping we want to cap the
             # maximum number of messages that are send for each request.

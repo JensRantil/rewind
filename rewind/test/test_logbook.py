@@ -650,6 +650,11 @@ class TestLogbookQuerying(unittest.TestCase):
         events = [event.event for event in self.querier.query(from_=from_, to=to)]
         self.assertEqual([event.event for event in allevents[4:-2]], events)
 
+    def testSyncNontExistentEvent(self):
+        result = self.querier.query(from_="non-exist")
+        self.assertRaises(communicators.EventQuerier.QueryException,
+                          list, result)
+
     def tearDown(self):
         self.query_socket.close()
 

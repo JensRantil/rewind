@@ -5,6 +5,9 @@ import rewind.messages.eventhandling_pb2 as eventhandling_pb2
 
 
 class EventQuerier(object):
+    class QueryException(Exception):
+        pass
+
     def __init__(self, socket):
         """Constructor."""
         self.socket = socket
@@ -47,6 +50,9 @@ class EventQuerier(object):
             data = self.socket.recv()
             if data == "END":
                 done = True
+            elif data == "ERROR":
+                raise self.QueryException("Could not query. Event key(s)"
+                                          " non-existent?")
             else:
                 stored_event.ParseFromString(data)
     
