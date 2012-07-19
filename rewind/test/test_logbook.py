@@ -10,13 +10,13 @@ import time
 import unittest
 import uuid
 import os
+import re
 
 import mock
 import zmq
 
 import rewind.communicators as communicators
 import rewind.logbook as logbook
-import rewind.messages.events_pb2 as events_pb2
 
 
 class _TestEventStore:
@@ -495,13 +495,17 @@ class _LogbookThread(threading.Thread):
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)
-        socket.send(_LogbookThread._EXIT_CODE)
+        socket.send_unicode(_LogbookThread._EXIT_CODE)
         time.sleep(0.5) # Acceptable exit time
         assert not self.isAlive()
         socket.close()
 
 
 class TestLogbookReplication(unittest.TestCase):
+
+    UUID_REGEXP = ("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-"
+                    "[0-9a-f]{12}")
+
     def setUp(self):
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
@@ -526,22 +530,18 @@ class TestLogbookReplication(unittest.TestCase):
         self.transmitter.setsockopt(zmq.LINGER, 1000)
 
     def testBasicEventProxying(self):
-        new_event = events_pb2.TaskCreated(taskid='1',
-                                           ownerid='2',
-                                           name='Buy milk')
-        event = events_pb2.Event(type=events_pb2.Event.TASK_CREATED,
-                                 task_created=new_event)
+        eventid = "abc12332fffgdgaab134432423"
+        eventstring = "THIS IS AN EVENT"
 
-        self.transmitter.send(event.SerializeToString())
-        received_string = self.receiver.recv()
+        self.transmitter.send_unicode(eventstring)
 
-        received_event = events_pb2.Event()
-        received_event.ParseFromString(received_string)
+        received_id = self.receiver.recv_unicode()
+        self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
+        received_string = self.receiver.recv_unicode()
+        self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
-        self.assertEqual(received_event.type, events_pb2.Event.TASK_CREATED)
-        self.assertEqual(received_event.task_created.taskid, '1')
-        self.assertEqual(received_event.task_created.ownerid, '2')
-        self.assertEqual(received_event.task_created.name, 'Buy milk')
+        self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
+        self.assertEqual(received_string, eventstring)
 
     def testProxyingABunchOfEvents(self):
         """Tests that a bunch of incoming messages processed correctly.
@@ -549,32 +549,29 @@ class TestLogbookReplication(unittest.TestCase):
         That is, they are all being proxied and in order.
         """
         NMESSAGES = 200
+        messages = []
+        for id in range(NMESSAGES):
+            eventstring = "THIS IS EVENT NUMBER %s" % id
+            messages.append(eventstring)
 
         # Sending
-        new_event = events_pb2.TaskCreated()
-        for i in range(NMESSAGES):
-            new_event.taskid = '{0}'.format(2*i)
-            new_event.ownerid = '{0}'.format(i+1)
-            new_event.name = 'Buy milk number {0}'.format(i)
-
-            event = events_pb2.Event(type=events_pb2.Event.TASK_CREATED,
-                                     task_created=new_event)
-            self.transmitter.send(event.SerializeToString())
+        for msg in messages:
+            self.transmitter.send_unicode(msg)
 
         # Receiving and asserting correct messages
-        received_event = events_pb2.Event()
-        for i in range(NMESSAGES):
-            received_string = self.receiver.recv()
+        eventids = []
+        for msg in messages:
+            received_id = self.receiver.recv_unicode()
+            self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
+            received_string = self.receiver.recv_unicode()
+            self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
-            received_event.ParseFromString(received_string)
+            self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
+            eventids.append(received_id)
+            self.assertEqual(received_string, msg)
 
-            self.assertEqual(received_event.type, events_pb2.Event.TASK_CREATED)
-            self.assertEqual(received_event.task_created.taskid,
-                             '{0}'.format(2*i))
-            self.assertEqual(received_event.task_created.ownerid,
-                             '{0}'.format(i+1))
-            self.assertEqual(received_event.task_created.name,
-                             'Buy milk number {0}'.format(i))
+        self.assertEqual(len(set(eventids)), len(eventids),
+                         "Found duplicate event id!")
 
     def tearDown(self):
         self.transmitter.close()
@@ -619,66 +616,39 @@ class TestLogbookQuerying(unittest.TestCase):
 
         self.sent = []
         for id in ids:
-            new_event = events_pb2.TaskCreated()
-            new_event.taskid = id
-            new_event.ownerid = random.choice(users)
-            new_event.name = 'Buy flowers to Julie'
-            event = events_pb2.Event(type=events_pb2.Event.TASK_CREATED,
-                                     task_created=new_event)
-            self.sent.append(event)
-            transmitter.send(event.SerializeToString())
+            eventstr = "Event with id '%s'" % id
+            transmitter.send_unicode(eventstr)
+            self.sent.append(eventstr)
         transmitter.close()
-
-    def _getAllPastEvents(self):
-        """Get all past events.
-
-        Helper class function to get the eventids of the events.
-
-        This function is tested through testSyncAllPastEvents(...).
-        """
-        return [event for event in self.querier.query()]
 
     def testSyncAllPastEvents(self):
         time.sleep(0.5) # Max time to persist the messages
-        events = self._getAllPastEvents()
+        allevents = [event.event for event in self.querier.query()]
+        self.assertEqual(allevents, self.sent)
 
-        self.assertEqual(events[0].event.task_created.taskid,
-                         self.sent[0].task_created.taskid,
-                         'Initial elements are not the same')
-        self.assertEqual(len(events), len(self.sent))
-        for received_stored_event, sent in zip(events, self.sent):
-            received = received_stored_event.event
-
-            self.assertEqual(received.type, sent.type)
-
-            recvd = received.task_created
-            sentd = sent.task_created
-
-            self.assertEqual(recvd.taskid, sentd.taskid)
-            self.assertEqual(recvd.ownerid, sentd.ownerid)
-            self.assertEqual(recvd.name, sentd.name)
+        self.assertEqual(allevents, self.sent, "Elements don't match.")
 
     def testSyncEventsSince(self):
         time.sleep(0.5) # Max time to persist the messages
-        allevents = self._getAllPastEvents()
+        allevents = [event for event in self.querier.query()]
         from_ = allevents[3].eventid
-        events = [event for event in self.querier.query(from_=from_)]
-        self.assertEqual(allevents[4:], events)
+        events = [event.event for event in self.querier.query(from_=from_)]
+        self.assertEqual([event.event for event in allevents[4:]], events)
         
     def testSyncEventsBefore(self):
         time.sleep(0.5) # Max time to persist the messages
-        allevents = self._getAllPastEvents()
+        allevents = [event for event in self.querier.query()]
         to = allevents[-3].eventid
-        events = [event for event in self.querier.query(to=to)]
-        self.assertEqual(allevents[:-2], events)
+        events = [event.event for event in self.querier.query(to=to)]
+        self.assertEqual([event.event for event in allevents[:-2]], events)
 
     def testSyncEventsBetween(self):
         time.sleep(0.5) # Max time to persist the messages
-        allevents = self._getAllPastEvents()
+        allevents = [event for event in self.querier.query()]
         from_ = allevents[3].eventid
         to = allevents[-3].eventid
-        events = [event for event in self.querier.query(from_=from_, to=to)]
-        self.assertEqual(allevents[4:-2], events)
+        events = [event.event for event in self.querier.query(from_=from_, to=to)]
+        self.assertEqual([event.event for event in allevents[4:-2]], events)
 
     def tearDown(self):
         self.query_socket.close()

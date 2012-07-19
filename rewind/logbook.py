@@ -14,7 +14,6 @@ import uuid
 
 import zmq
 
-import rewind.messages.events_pb2 as events_pb2
 import rewind.messages.eventhandling_pb2 as eventhandling_pb2
 
 
@@ -739,16 +738,16 @@ class LogBookRunner(object):
         if self.exit_message and eventstr==self.exit_message:
             return False
 
-        event = events_pb2.Event()
-        event.ParseFromString(eventstr)
         newid = self.id_generator.generate()
+
         stored_event = eventhandling_pb2.StoredEvent(eventid=newid,
-                                                     event=event)
+                                                     event=eventstr)
 
         # Only serializing once
         stored_event_str = stored_event.SerializeToString()
 
         self.eventstore.add_event(newid, stored_event_str)
+        self.streaming_socket.send(newid, zmq.SNDMORE)
         self.streaming_socket.send(eventstr)
 
         return True
