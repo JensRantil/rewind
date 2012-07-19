@@ -164,7 +164,7 @@ Checking out
 To start developing you need to install the ZeroMQ library on your system
 beforehand.
 
-This is how you check out the `rewind` library into a virtual environment:
+This is how you check out the `rewind` library into a virtual environment::
 
     cd <your development directory>
     virtualenv --note-site-packages rewind
@@ -175,7 +175,7 @@ Workin' the code
 ----------------
 Every time you want to work on `rewind` you want to change directory
 into the source folder and activate the virtual environment scope (so
-that you don't touch the global Python environment):
+that you don't touch the global Python environment)::
 
     cd src
     source ../bin/activate
@@ -187,7 +187,7 @@ development mode:
 
 Runnin' them tests
 ------------------
-Running the test suite is done by issuing
+Running the test suite is done by issuing::
 
     python setup.py nosetests
 
