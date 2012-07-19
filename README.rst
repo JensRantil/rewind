@@ -208,11 +208,11 @@ Why the name `rewind`?
 =============
 Pick and choose:
 
-* `rewind` can look at what happened in the past and replay the events
-   since then.
+* Rewind can look at what happened in the past and replay the events
+  since then.
 
-* it's time to rewind and rethink the way we are overusing DBMS's and
-   the way we are storing our data.
+* It's time to rewind and rethink the way we are overusing DBMS's and
+  the way we are storing our data.
 
 Author
 ======
