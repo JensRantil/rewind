@@ -14,6 +14,7 @@ setup(
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='GNU AGPL, version 3',
+    url='https://github.com/JensRantil/rewind',
     packages=[
         'rewind',
         'rewind.test'
