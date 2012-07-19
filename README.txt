@@ -9,8 +9,8 @@ that information since earlier"? Have you ever felt your writing
 patterns and your reading patterns differ a lot, making things harder to
 scale?
 
-CQRS (Command-Query Response Segregation) is an architectural pattern that has been gaining a lot of interest
-that aims to solve these issues. 
+CQRS (Command-Query Response Segregation) is an architectural pattern
+that has been gaining a lot of interest that aims to solve these issues. 
 
 `rewind` is an event store application that talks ZeroMQ. It is written
 in Python and supports mutliple backends.
