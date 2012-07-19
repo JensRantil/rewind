@@ -3,7 +3,7 @@ Rewind
 =======
 
 Have you ever been nervous of all those DBMSs schema changes when you
-are deploying your applications? they are gonna take too long, or break
+are deploying your applications? They are gonna take too long, or break
 backward compatibility? Have you ever thought "Crap, I wish I had stored
 that information since earlier"? Have you ever felt your writing
 patterns and your reading patterns differ a lot, making things harder to
