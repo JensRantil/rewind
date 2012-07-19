@@ -79,8 +79,8 @@ Why the name `rewind`?
 =============
  * `rewind` can look at what happened in the past and replay the events
    since then.
- * it's time to rewind and rethink the way we are overusing DBMS and
-   storing our data.
+ * it's time to rewind and rethink the way we are overusing DBMS's and
+   the way we are storing our data.
 
 Author
 ======
