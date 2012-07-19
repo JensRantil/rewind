@@ -18,7 +18,7 @@ setup(
         'rewind',
         'rewind.test'
     ],
-    long_description=open('README.txt').read(),
+    long_description=open('DESCRIPTION.rst').read(),
     setup_requires=[
         'nose>=1.0',
         'coverage==3.5.1',
@@ -31,7 +31,7 @@ setup(
     test_suite="rewind.test",
     entry_points={
         'console_scripts': [
-            'logbook = rewind.logbook:main',
+            'rewind = rewind.logbook:main',
         ]
     },
 )
