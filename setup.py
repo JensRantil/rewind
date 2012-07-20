@@ -3,13 +3,9 @@ import sys
 
 
 py_version = sys.version_info[:2]
-PY3 = py_version[0] == 3
-if PY3:
-    raise RuntimeError('Python 3 is currently not supported. See issue #12.')
-else:
-    if py_version <= (2, 6):
-        raise RuntimeError("Python <= 2.6 does not ship with argparse. "
-                           "Therefore, rewind will not work with these.")
+if py_version <= (2, 6):
+    raise RuntimeError("Python <= 2.6 does not ship with argparse. "
+                        "Therefore, rewind will not work with these.")
 
 
 setup(
