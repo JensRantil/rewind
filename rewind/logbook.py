@@ -89,7 +89,7 @@ class KeyValuePersister(collections.MutableMapping):
 
     def __setitem__(self, key, val):
         if self._delimiter in key:
-            msg = "Key contained delimiter: %s" % key
+            msg = "Key contained delimiter: {0}".format(key)
             raise KeyValuePersister.InsertError(msg)
         if "\n" in key:
             msg = "Key must not contain any newline. It did: {0}"
@@ -106,14 +106,14 @@ class KeyValuePersister(collections.MutableMapping):
                     # Rewriting the whole file serially. Yes, it's a slow
                     # operation, but hey - it's an ascii file
                     for key, val in self._keyvals.iteritems():
-                        f.write("%s%s%s\n" % (key, self._delimiter, val))
+                        f.write("{0}{1}{2}\n".format(key, self._delimiter, val))
             except Exception as e:
                 self._keyvals[key] = oldval
                 raise e
             finally:
                 self._open()
         else:
-            self._file.write("%s%s%s\n" % (key, self._delimiter, val))
+            self._file.write("{0}{1}{2}\n".format(key, self._delimiter, val))
             self._keyvals[key] = val
 
 
@@ -202,7 +202,7 @@ class InMemoryEventStore(EventStore):
         """See `EventStore.add_event(...)`."""
         if key in self.keys or key in self.events:
             raise EventStore.EventKeyAlreadyExistError(
-                "The key already existed: %s" % key)
+                "The key already existed: {0}".format(key))
         self.keys.append(key)
         # Important no exceptions happen between these lines!
         self.events[key] = event
@@ -211,21 +211,21 @@ class InMemoryEventStore(EventStore):
         """See `EventStore.add_get_events(...)`."""
         if from_ and (from_ not in self.keys or from_ not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
-                "Could not find the from_ key: %s" % from_)
+                "Could not find the from_ key: {0}".format(from_))
         if to and (to not in self.keys or to not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
-                "Could not find the from_ key: %s" % to)
+                "Could not find the from_ key: {0}".format(to))
         
         # +1 here because we have already seen the event we are asking for
         fromindex = self.keys.index(from_)+1 if from_ else 0
 
         toindex = self.keys.index(to)+1 if to else len(self.events)
         if fromindex > toindex:
-            raise LogBookEventOrderError("'From' index came after 'To'. \
-                                         Keys: (%s, %s) \
-                                         Indices: (%s, %s)" % (from_, to,
-                                                               fromindex,
-                                                               toindex))
+            msg = ("'From' index came after 'To'."
+                   " Keys: ({0}, {1})"
+                   " Indices: ({2}, {3})").format(from_, to, fromindex,
+                                                  toindex)
+            raise LogBookEventOrderError(msg)
         return ((key, self.events[key]) for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
@@ -241,7 +241,7 @@ class _SQLiteEventStore(EventStore):
         hasher = _initialize_hasher(path)
         if fname in checksum_persister and \
            checksum_persister[fname] != hasher.hexdigest():
-            msg = "The file '%s' had wrong md5 checksum." % path
+            msg = "The file '{0}' had wrong md5 checksum.".format(path)
             raise LogBookCorruptionError(msg)
 
         # isolation_level=None => autocommit mode
@@ -274,9 +274,11 @@ class _SQLiteEventStore(EventStore):
     def get_events(self, from_=None, to=None):
         """See `EventStore.get_events(...)`."""
         if from_ and not self.key_exists(from_):
-            raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
+            msg = 'from_={0}'.format(from_)
+            raise EventStore.EventKeyDoesNotExistError(msg)
         if to and not self.key_exists(to):
-            raise EventStore.EventKeyDoesNotExistError('to=%s' % to)
+            msg = 'to={0}'.format(to)
+            raise EventStore.EventKeyDoesNotExistError(msg)
 
         # +1 below because we have already seen the event
         fromindex = self._get_eventid(from_)+1 if from_ else 0
@@ -313,8 +315,8 @@ class _SQLiteEventStore(EventStore):
         elif count == 1:
             return True
         else:
-            raise RuntimeException('There multiple event instances of: %s' %
-                                   key)
+            msg = 'There multiple event instances of: {0}'.format(key)
+            raise RuntimeException(msg)
 
     def count(self):
         """Return the number of events in the db."""
@@ -370,7 +372,7 @@ class _LogEventStore(EventStore):
         checksum_persister = _get_checksum_persister(path)
         if fname in checksum_persister and \
            checksum_persister[fname] != self._hasher.hexdigest():
-            msg = "The file '%s' was had wrong md5." % path
+            msg = "The file '{0}' was had wrong md5.".format(path)
             raise LogBookCorruptionError(msg)
         
         self._path = path
@@ -419,7 +421,8 @@ class _LogEventStore(EventStore):
                     found_to = True
                     break
             if to and not found_to:
-                raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
+                msg = 'from_={0}'.format(from_)
+                raise EventStore.EventKeyDoesNotExistError(msg)
 
         return eventstrs
 
@@ -667,7 +670,7 @@ class SyncedRotationEventStores(EventStore):
             # This check might actually also be done further up in the chain
             # (read: _SQLiteEventStore). Could potentially be removed if it
             # requires a lot of processor cycles.
-            msg = "The key already existed: %s" % key
+            msg = "The key already existed: {0}".format(key)
             raise EventStore.EventKeyAlreadyExistError(msg)
 
         self._rotate_files_if_needed()

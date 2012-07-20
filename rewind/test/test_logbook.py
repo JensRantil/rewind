@@ -128,7 +128,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
                 mkdir_mock.assert_called_once(params['dirpath'])
 
             fname_absolute = os.path.join(params['dirpath'],
-                                          "%s.0" % params['prefix'])
+                                          "{0}.0".format(params['prefix']))
 
             # If it wasn't for the fact that this class function was called from
             # testReopening, we would be able to also assert that the factory
@@ -553,7 +553,7 @@ class TestLogbookReplication(unittest.TestCase):
         NMESSAGES = 200
         messages = []
         for id in range(NMESSAGES):
-            eventstring = "THIS IS EVENT NUMBER %s" % id
+            eventstring = "THIS IS EVENT NUMBER {0}".format(id)
             messages.append(eventstring)
 
         # Sending
@@ -618,7 +618,7 @@ class TestLogbookQuerying(unittest.TestCase):
 
         self.sent = []
         for id in ids:
-            eventstr = "Event with id '%s'" % id
+            eventstr = "Event with id '{0}'".format(id)
             transmitter.send_unicode(eventstr)
             self.sent.append(eventstr)
         transmitter.close()
@@ -770,7 +770,7 @@ class TestKeyValuePersister(unittest.TestCase):
         with open(self.keyvalfile) as f:
             content = f.read()
             actual_lines = content.splitlines()
-            expected_lines = ["%s %s" % (k,v)
+            expected_lines = ["{0} {1}".format(k,v)
                               for k,v in self.keyvals.iteritems()]
         self.assertEquals(actual_lines, expected_lines)
 
