@@ -45,6 +45,7 @@ has yet been published. There exist a `roadmap to bring it to v. 0.1`_.
 Pull requests are welcome!
 
 .. _exists on PyPi: http://pypi.python.org/pypi/rewind/
+.. _roadmap to bring it to v. 0.1: https://github.com/JensRantil/rewind/issues?milestone=1&state=open
 
 Manual install
 --------------
