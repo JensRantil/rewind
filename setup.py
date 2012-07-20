@@ -17,6 +17,18 @@ setup(
         'rewind.test'
     ],
     long_description=open('DESCRIPTION.rst').read(),
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Environment :: No Input/Output (Daemon)",
+        "Intended Audience :: Other Audience",
+        "License :: OSI Approved :: GNU Affero General Public License v3",
+        "Natural Language :: English",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 2.7",
+        "Topic :: Database :: Database Engines/Servers",
+        "Topic :: Software Development :: Object Brokering",
+        "Topic :: System :: Distributed Computing",
+    ],
     setup_requires=[
         'nose>=1.0',
         'coverage==3.5.1',
