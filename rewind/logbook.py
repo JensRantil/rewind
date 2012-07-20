@@ -476,7 +476,7 @@ class RotatedEventStore(EventStore):
 
     def rotate(self):
         self.logger.info('Rotating data files. New batch number will be: %s',
-                    self.batchno + 1)
+                         self.batchno + 1)
         self.estore.close()
         self.estore = None
         self.batchno += 1
