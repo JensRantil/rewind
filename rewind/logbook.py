@@ -209,6 +209,15 @@ class _SQLiteEventStore(EventStore):
             );
         ''');
 
+        cursor = self.conn.cursor()
+        with contextlib.closing(cursor):
+            cursor.execute('PRAGMA integrity_check(1)')
+            res = cursor.fetchone()
+            status = res[0]
+            assert status=='ok', \
+                    "Integrity check failed when opening SQLite." \
+                    " Actual status: {0}".format(status)
+
         self._path = path
 
     def add_event(self, key, event):
