@@ -1,7 +1,0 @@
-#!/bin/bash
-set -o errexit  ## exit after any error (non-zero statement) 
-
-# This script expects to be executed in the source code root directory
-rm -f rewind/messages/*_pb2.py
-protoc --proto_path=lib/protobuf -I lib/protobuf/ --python_out=rewind/messages/ lib/protobuf/*.proto
-
