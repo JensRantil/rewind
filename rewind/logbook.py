@@ -70,6 +70,10 @@ class KeyValuePersister(collections.MutableMapping):
         self._file = rawfile
 
     def close(self):
+        """Close the persister.
+
+        Important to do to not have file descriptor leakages.
+        """
         self._file.close()
         self._file = None
 
@@ -147,12 +151,33 @@ class EventStore(object):
         pass
 
     def add_event(self, key, event):
+        """Adds an event with key to the store.
+        
+        Parameters:
+        key   -- the key used to reference the event. The key must be a string.
+        event -- the serialized event. The event must be a string or data.
+        """
         raise NotImplementedError("Should be implemented by subclass.")
 
     def get_events(self, from_=None, to=None):
+        """Query for events.
+
+        Parameters:
+        from_   -- receive all events seen later than the event with event id
+                   `from_`. Note that this does not include `from_`.
+        to      -- receive all events seen before the event with event id
+                   `to`. Note that this also includes `to`.
+        returns -- an iterable of events.
+        """
         raise NotImplementedError("Should be implemented by subclass.")
 
     def key_exists(self, key):
+        """Check whether a key exists in the event store.
+
+        Depending on the implementation of the event store, this method might
+        not always look through the whole key space. In fact, it might not even
+        look at all.
+        """
         raise NotImplementedError("Should be implemented by subclass.")
 
     def close(self):
@@ -170,6 +195,7 @@ class InMemoryEventStore(EventStore):
         self.events = {}
 
     def add_event(self, key, event):
+        """See `EventStore.add_event(...)`."""
         if key in self.keys or key in self.events:
             raise EventStore.EventKeyAlreadyExistError(
                 "The key already existed: %s" % key)
@@ -178,6 +204,7 @@ class InMemoryEventStore(EventStore):
         self.events[key] = event
 
     def get_events(self, from_=None, to=None):
+        """See `EventStore.add_get_events(...)`."""
         if from_ and (from_ not in self.keys or from_ not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
                 "Could not find the from_ key: %s" % from_)
@@ -198,6 +225,7 @@ class InMemoryEventStore(EventStore):
         return (self.events[key] for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
+        """See `EventStore.key_exists(...)`."""
         return key in self.keys
 
 
@@ -235,10 +263,12 @@ class _SQLiteEventStore(EventStore):
         self._path = path
 
     def add_event(self, key, event):
+        """See `EventStore.add_event(...)`."""
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
                      (key, event))
 
     def get_events(self, from_=None, to=None):
+        """See `EventStore.get_events(...)`."""
         if from_ and not self.key_exists(from_):
             raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
         if to and not self.key_exists(to):
@@ -268,6 +298,7 @@ class _SQLiteEventStore(EventStore):
             return res[0]
 
     def key_exists(self, key):
+        """See `EventStore.key_exists(...)`."""
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
             cursor.execute('SELECT COUNT(*) FROM events WHERE uuid=?', (key,))
@@ -290,6 +321,10 @@ class _SQLiteEventStore(EventStore):
             return res[0]
 
     def close(self):
+        """Close the event store.
+        
+        Important to close to not have any file descriptor leakages.
+        """
         if self.conn:
             self.conn.close()
             self.conn = None
@@ -489,6 +524,11 @@ class RotatedEventStore(EventStore):
                             "{0}.{1}".format(self.prefix, batchno))
 
     def rotate(self):
+        """Rotate the files to disk.
+
+        This is done by calling `store.close()` on each store, bumping the
+        batchno and reopening the stores using their factories.
+        """
         self.logger.info('Rotating data files. New batch number will be: %s',
                          self.batchno + 1)
         self.estore.close()
@@ -497,6 +537,7 @@ class RotatedEventStore(EventStore):
         self.estore = self._open_event_store()
 
     def add_event(self, key, event):
+        """See `EventStore.add_event(...)`."""
         self.estore.add_event(key, event)
 
     def _find_batch_containing_event(self, uuid):
@@ -524,6 +565,8 @@ class RotatedEventStore(EventStore):
 
         It also queries older event archives until it finds the event UUIDs
         necessary.
+        
+        See `EventStore.add_event(...)` for details.
         """
         if from_:
             frombatchno = self._find_batch_containing_event(from_)
@@ -559,6 +602,7 @@ class RotatedEventStore(EventStore):
         return self.estore.key_exists(key)
 
     def close(self):
+        """Close the event store."""
         self.estore.close()
         self.estore = None
 
@@ -586,6 +630,7 @@ class SyncedRotationEventStores(EventStore):
         self.stores = []
 
     def add_rotated_store(self, rotated_store):
+        """Add a `RotatedEventStore` that shall be rotated with the others."""
         assert self.count == 0, \
                 "Must not have written before adding additional estores"
         self.stores.append(rotated_store)
@@ -609,9 +654,11 @@ class SyncedRotationEventStores(EventStore):
         self.stores = []
 
     def close(self):
+        """Close all underlying stores."""
         self._close_event_stores()
 
     def add_event(self, key, event):
+        """See `EventStore.add_event(...)`."""
         if self.key_exists(key):
             # This check might actually also be done further up in the chain
             # (read: _SQLiteEventStore). Could potentially be removed if it
@@ -637,6 +684,12 @@ class SyncedRotationEventStores(EventStore):
         return self.stores[0].key_exists(key)
 
     def get_events(self, from_=None, to=None):
+        """Query events.
+        
+        The events are queried from the event store that was added first using
+        `add_rotated_store(...)`.
+
+        See `EventStore.get_event(...)`."""
         return self.stores[0].get_events(from_, to)
 
 
@@ -649,6 +702,7 @@ class IdGenerator:
         return str(uuid.uuid4())
 
     def generate(self):
+        """Generate a new string and return it."""
         key = self._propose_new_key()
         while self.key_exists(key):
             logger.warning('Previous candidate was used.'
