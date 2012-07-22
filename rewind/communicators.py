@@ -5,7 +5,12 @@ import rewind.messages.eventhandling_pb2 as eventhandling_pb2
 
 
 class EventQuerier(object):
+    """Client that queries events from rewind over ZeroMQ."""
     class QueryException(Exception):
+        """Raised when rewind server returns an error.
+
+        Usually this exception means you have used a non-existing query key.
+        """
         pass
 
     def __init__(self, socket):
