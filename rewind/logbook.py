@@ -555,9 +555,6 @@ class SyncedRotationEventStores(EventStore):
     Rotation is done at the same time for all event stores to make sure they are
     kept in sync.
     """
-    class IntegrityError(RuntimeError):
-        pass
-
     def __init__(self, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
         
@@ -573,8 +570,6 @@ class SyncedRotationEventStores(EventStore):
         self.events_per_batch = events_per_batch
         self.count = 0
         self.stores = []
-
-        # TODO: Test that 'md5sum' exists
 
     def add_rotated_store(self, rotated_store):
         assert self.count == 0, \
@@ -601,54 +596,6 @@ class SyncedRotationEventStores(EventStore):
 
     def close(self):
         self._close_event_stores()
-
-    def check_integrity(self):
-        """Check the filesystem integrity of the files.
-        
-        Static class function to minimize state.
-
-        TODO: Test.
-        """
-        SyncedRotationEventStores._test_log_filename_format(logpath)
-        SyncedRotationEventStores._test_db_filename_format(dbpath)
-
-        # Simply shortened constants
-        dbprefix = SyncedRotationEventStores.DATABASE_PREFIX
-        logprefix = SyncedRotationEventStores.LOG_PREFIX
-
-        dbfiles = os.listdir(dbpath)
-        logfiles = os.listdir(logpath)
-
-        for batchno in range(max(len(dbfiles), len(logfiles))):
-            dbfile = os.path.join(dbpath,
-                                  "{0}{1}".format(dbprefix, batchno))
-            logfile = os.path.join(logpath,
-                                   "{0}{1}".format(logprefix, batchno))
-
-            # Tests
-            dbfile_exists = os.path.exists(dbfile)
-            logfile_exists = os.path.exists(logfile)
-            if not dbfile_exists:
-                logger.warn("Integrity issue. Missing file: %s", dbfile)
-            if not logfile_exists:
-                logger.warn("Integrity issue. Missing file: %s", logfile)
-            if not dbfile_exists:
-                SyncedRotationEventStores.IntegrityError("Missing file: %s",
-                                                   dbfile)
-            if not logfile_exists:
-                SyncedRotationEventStores.IntegrityError("Missing file: %s",
-                                                   logfile)
-            if not os.path.isfile(dbfile):
-                SyncedRotationEventStores.IntegrityError("Not regular file: %s",
-                                                   dbfile)
-            if not os.path.isfile(logfile):
-                SyncedRotationEventStores.IntegrityError("Not regular file: %s",
-                                                   logfile)
-
-            # TODO: Recreate database from log if it seems corrupt.
-            # TODO: Fail only if database exists, but log does not.
-            
-        # TODO: Write code that verifies MD5 for logs
 
     def add_event(self, key, event):
         if self.key_exists(key):
