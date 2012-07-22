@@ -1,5 +1,4 @@
 # Requirements that is being used by Travis CI
-protobuf==2.4.1
 pyzmq==2.2.0
 mock==0.8
 coverage==3.5.1

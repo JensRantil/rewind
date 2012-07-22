@@ -120,20 +120,25 @@ converation between a client (C) and Rewind (R) looks like this::
 
 Request
 ```````
-A request is constructed from the protocol buffer message
-``EventRequest`` in ``lib/protobuf/eventhandling.proto``. Each request
-can make four different types of requests:
+Each request is a multipart message. The first part is a string that
+specifies the type of request. Currently there's only one type of
+request, namely "QUERY".
 
-* Give me all events.
+For the "QUERY" request type the next two message parts must be:
 
-* Give me all events that happened from the beginning of time up until
-  the event with the event id ``XXX``.
+* Contains an optional event id, or an empty part. Restricts the
+  earliest (chronologically) incoming message that we are interested in
+  to all messages received after the event with the specified event id.
+  Note that this does not include the message with the specified event
+  id. If this part of the message is empty, no lower restriction is made
+  and messages will be returned starting from the first event ever seen.
 
-* Give me the event with event id ``XXX`` and all events that happened
-  after that event (up until the last event).
-
-* Give me event ``XXX`` and all events that came after it up to event
-  with event id ``YYY`` took place.
+* Contains an optional event id, or an empty part. Restricts the latest
+  (chronologically) incoming message that we are interested in to all
+  messages received before, or including, the event with the specified
+  event id. If this part of the message is empty, no upper restriction
+  is made and messages will be returned starting from the first event
+  ever seen.
 
 If you are a data structure type-of-guy you could view Rewind as a
 distributed insert-ordered map (event id => event) that allows querying
@@ -143,16 +148,19 @@ Response
 ````````
 A response can be one of two things:
 
-* A single message consisting of the ASCII text ``ERROR``. This usually
-  means a query was made that used an event id that was not recognized.
+* A single message starting with the ASCII text ``ERROR``. This means an
+  error occured. The rest of message contains a human readable
+  description of the actual error that occured. This information can be
+  highly useful for remote clients to debug any problems that might
+  arise.
 
-* A multipart message containing ``(event_id, event)`` tuples. Each
-  tuple of is a serialized form of the ``StoredEvent`` protobuf message
-  that can be found in ``lib/protobuf/eventhandling.proto``. The whole
-  response message is limited to 100 events. If rewind can't find any
-  more messages the last message part will be the ASCII message ``END``.
-  If the upper limit (of 100) is reached it is up to the client to make
-  repeatedly requests to get the full range of events.
+* A resultset containing events. It's a multipart message containing
+  frames like so; eventid #1, event #1, eventid #2, event #2, eventid
+  #3, event #3, ... where eventid #X is the event id for event X. At
+  most 100 messages will be returned. If Rewind did not cap number of
+  events, the result will be appended by a last frame containing the
+  ASCII content "END". It is up to the client to make requests
+  repeatedly if the result set is capped.
 
 Developing
 ==========
