@@ -708,11 +708,11 @@ class TestKeyValuePersister(unittest.TestCase):
         self._assertValuesWereWritten()
 
     def _assert_delimieter_key_exception(self):
-        faulty_keys = ["a key", "key ", " key"]
-        for key in faulty_keys:
+        faulty_kvs = [("a key", "value"), ("key ", "value"), (" key", "value"),
+                      ("multiline\nkey", "value"), ("key", "multiline\nvalue")]
+        for key, val in faulty_kvs:
             self.assertRaises(logbook.KeyValuePersister.InsertError,
-                              lambda x,y: self.keyvalpersister.__setitem__(x,y),
-                              key, "5")
+                              lambda: self.keyvalpersister.__setitem__(key, val))
 
     def testAppendingKeyContainingDelimiter(self):
         self._assert_delimieter_key_exception()

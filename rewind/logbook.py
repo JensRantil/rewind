@@ -88,6 +88,12 @@ class KeyValuePersister(collections.MutableMapping):
         if self._delimiter in key:
             msg = "Key contained delimiter: %s" % key
             raise KeyValuePersister.InsertError(msg)
+        if "\n" in key:
+            msg = "Key must not contain any newline. It did: {0}"
+            raise KeyValuePersister.InsertError(msg.format(key))
+        if "\n" in val:
+            msg = "Value must not contain any newline. It did: {0}"
+            raise KeyValuePersister.InsertError(msg.format(val))
         if key in self._keyvals:
             self._keyvals[key] = val
             self.close()
