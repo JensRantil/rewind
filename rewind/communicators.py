@@ -22,12 +22,12 @@ class EventQuerier(object):
         while not done:
             # _real_query(...) are giving us events in small batches
             done, events = self._real_query(from_, to)
-            for event in events:
+            for eventid, eventdata in events:
                 if first_msg:
-                    assert event.eventid != from_, "First message ID wrong"
+                    assert eventid != from_, "First message ID wrong"
                     first_msg = False
-                from_ = event.eventid
-                yield event
+                from_ = eventid
+                yield (eventid, eventdata)
 
     def _real_query(self, from_=None, to=None):
         """Make the actual query for events.

@@ -40,28 +40,29 @@ class _TestEventStore:
         print "Populating with {0} events...".format(N)
         self.keys = [str(i) for i in range(N)]
         self.vals = [str(i+30) for i in range(N)]
+        self.items = zip(self.keys, self.vals)
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
     def testQueryingAll(self):
         result = self.store.get_events()
-        self.assertEqual(list(result), self.vals)
+        self.assertEqual(list(result), self.items)
 
     def testQueryAfter(self):
         result = self.store.get_events(from_=self.keys[0])
-        self.assertEqual(list(result), self.vals[1:])
+        self.assertEqual(list(result), self.items[1:])
         result = self.store.get_events(from_=self.keys[1])
-        self.assertEqual(list(result), self.vals[2:])
+        self.assertEqual(list(result), self.items[2:])
 
     def testQueryBefore(self):
         result = self.store.get_events(to=self.keys[-1])
-        self.assertEqual(list(result), self.vals)
+        self.assertEqual(list(result), self.items)
         result = self.store.get_events(to=self.keys[-2])
-        self.assertEqual(list(result), self.vals[:-1])
+        self.assertEqual(list(result), self.items[:-1])
 
     def testQueryBetween(self):
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
-        self.assertEqual(list(result), self.vals[2:-1])
+        self.assertEqual(list(result), self.items[2:-1])
 
     def testKeyExists(self):
         for key in self.keys:
@@ -266,6 +267,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         self.store = store
         self.keys = keys1 + keys2 + keys3
         self.vals = vals1 + vals2 + vals3
+        self.items = zip(self.keys, self.vals)
         self.keys3, self.vals3 = keys3, vals3
         self.estore_factory = estore_factory
         self.mstore1 = mstore1
@@ -623,7 +625,7 @@ class TestLogbookQuerying(unittest.TestCase):
 
     def testSyncAllPastEvents(self):
         time.sleep(0.5) # Max time to persist the messages
-        allevents = [event.event for event in self.querier.query()]
+        allevents = [event[1] for event in self.querier.query()]
         self.assertEqual(allevents, self.sent)
 
         self.assertEqual(allevents, self.sent, "Elements don't match.")
@@ -631,24 +633,24 @@ class TestLogbookQuerying(unittest.TestCase):
     def testSyncEventsSince(self):
         time.sleep(0.5) # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
-        from_ = allevents[3].eventid
-        events = [event.event for event in self.querier.query(from_=from_)]
-        self.assertEqual([event.event for event in allevents[4:]], events)
+        from_ = allevents[3][0]
+        events = [event[1] for event in self.querier.query(from_=from_)]
+        self.assertEqual([event[1] for event in allevents[4:]], events)
         
     def testSyncEventsBefore(self):
         time.sleep(0.5) # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
-        to = allevents[-3].eventid
-        events = [event.event for event in self.querier.query(to=to)]
-        self.assertEqual([event.event for event in allevents[:-2]], events)
+        to = allevents[-3][0]
+        events = [event[1] for event in self.querier.query(to=to)]
+        self.assertEqual([event[1] for event in allevents[:-2]], events)
 
     def testSyncEventsBetween(self):
         time.sleep(0.5) # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
-        from_ = allevents[3].eventid
-        to = allevents[-3].eventid
-        events = [event.event for event in self.querier.query(from_=from_, to=to)]
-        self.assertEqual([event.event for event in allevents[4:-2]], events)
+        from_ = allevents[3][0]
+        to = allevents[-3][0]
+        events = [event[1] for event in self.querier.query(from_=from_, to=to)]
+        self.assertEqual([event[1] for event in allevents[4:-2]], events)
 
     def testSyncNontExistentEvent(self):
         result = self.querier.query(from_="non-exist")

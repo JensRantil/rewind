@@ -165,7 +165,7 @@ class EventStore(object):
                    `from_`. Note that this does not include `from_`.
         to      -- receive all events seen before the event with event id
                    `to`. Note that this also includes `to`.
-        returns -- an iterable of events.
+        returns -- an iterable of (event id, eventdata) tuples.
         """
         raise NotImplementedError("Should be implemented by subclass.")
 
@@ -220,7 +220,7 @@ class InMemoryEventStore(EventStore):
                                          Indices: (%s, %s)" % (from_, to,
                                                                fromindex,
                                                                toindex))
-        return (self.events[key] for key in self.keys[fromindex:toindex])
+        return ((key, self.events[key]) for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
         """See `EventStore.key_exists(...)`."""
@@ -280,13 +280,13 @@ class _SQLiteEventStore(EventStore):
                                          " 'from_'.")
 
         if toindex:
-            sql = 'SELECT event FROM events WHERE eventid BETWEEN ? AND ?'
+            sql = 'SELECT uuid, event FROM events WHERE eventid BETWEEN ? AND ?'
             params = (fromindex, toindex)
         else:
-            sql = 'SELECT event FROM events WHERE eventid >= ?'
+            sql = 'SELECT uuid, event FROM events WHERE eventid >= ?'
             params = (fromindex,)
         sql = sql + " ORDER BY eventid"
-        return [row[0] for row in self.conn.execute(sql, params)]
+        return [(row[0], row[1]) for row in self.conn.execute(sql, params)]
 
     def _get_eventid(self, uuid):
         cursor = self.conn.cursor()
@@ -408,14 +408,14 @@ class _LogEventStore(EventStore):
             found_to = False
             for line in f:
                 key, eventstr = line.strip().split("\t")
-                eventstrs.append(eventstr)
+                eventstrs.append((key, base64.decodestring(eventstr)))
                 if to and to == key:
                     found_to = True
                     break
             if to and not found_to:
                 raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
 
-        return [base64.decodestring(eventstr) for eventstr in eventstrs]
+        return eventstrs
 
     def get_events(self, from_=None, to=None):
         """Get events.
@@ -592,8 +592,8 @@ class RotatedEventStore(EventStore):
                                                          event_ranges):
             estore = self._open_event_store(batchno)
             with contextlib.closing(estore):
-                for event in estore.get_events(from_in_batch, to_in_batch):
-                    yield event
+                for eventtuple in estore.get_events(from_in_batch, to_in_batch):
+                    yield eventtuple
 
     def key_exists(self, key):
         """Checks whether the key exists in the current event store."""
