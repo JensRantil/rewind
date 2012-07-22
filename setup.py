@@ -41,7 +41,6 @@ setup(
         'coverage==3.5.1',
     ],
     install_requires=[
-        "protobuf==2.4.1",
         "pyzmq==2.2.0",
     ],
     tests_require=[
