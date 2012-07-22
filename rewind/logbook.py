@@ -14,8 +14,6 @@ import uuid
 
 import zmq
 
-import rewind.messages.eventhandling_pb2 as eventhandling_pb2
-
 
 logger = logging.getLogger(__name__)
 
@@ -763,14 +761,14 @@ class LogBookRunner(object):
             return False
 
         newid = self.id_generator.generate()
+        
+        # Make sure newid is not part of our request vocabulary
+        assert newid != "QUERY", \
+                "Generated ID must not be part of req/rep vocabulary."
+        assert not newid.startswith("ERROR"), \
+                "Generated ID must not be part of req/rep vocabulary."
 
-        stored_event = eventhandling_pb2.StoredEvent(eventid=newid,
-                                                     event=eventstr)
-
-        # Only serializing once
-        stored_event_str = stored_event.SerializeToString()
-
-        self.eventstore.add_event(newid, stored_event_str)
+        self.eventstore.add_event(newid, eventstr)
         self.streaming_socket.send(newid, zmq.SNDMORE)
         self.streaming_socket.send(eventstr)
 
@@ -778,17 +776,19 @@ class LogBookRunner(object):
 
     def _handle_query(self):
         """Handle an event query."""
-        reqstr = self.query_socket.recv()
-        request = eventhandling_pb2.EventRequest()
-        request.ParseFromString(reqstr)
-        request_types = eventhandling_pb2.EventRequest
-        if request.type == request_types.RANGE_STREAM_REQUEST:
-            fro = request.event_range.fro
-            to = request.event_range.to
+        requesttype = self.query_socket.recv()
+        if requesttype == "QUERY":
+            assert self.query_socket.getsockopt(zmq.RCVMORE)
+            fro = self.query_socket.recv()
+            assert self.query_socket.getsockopt(zmq.RCVMORE)
+            to = self.query_socket.recv()
+            assert not self.query_socket.getsockopt(zmq.RCVMORE)
+
             logging.debug("Incoming query: (from, to)=(%s, %s)" % (fro, to))
 
             try:
-                events = self.eventstore.get_events(from_=fro, to=to)
+                events = self.eventstore.get_events(fro if fro else None,
+                                                    to if to else None)
             except EventStore.EventKeyDoesNotExistError as e:
                 logger.exception("A client requested a key that does not"
                                  " exist:")
@@ -804,14 +804,21 @@ class LogBookRunner(object):
             events = list(events)
             if len(events)==MAX_ELMNTS_PER_REQ+1:
                 # There are more elements, but we are capping the result
-                for event in events[:-1]:
-                    self.query_socket.send(event, zmq.SNDMORE)
-                self.query_socket.send(events[-1])
+                for eventid, eventdata in events[:-1]:
+                    self.query_socket.send(eventid, zmq.SNDMORE)
+                    self.query_socket.send(eventdata, zmq.SNDMORE)
+                lasteventid, lasteventdata = events[-1]
+                self.query_socket.send(lasteventid, zmq.SNDMORE)
+                self.query_socket.send(lasteventdata)
             else:
                 # Sending all events. Ie., we are not capping
-                for event in events:
-                    self.query_socket.send(event, zmq.SNDMORE)
+                for eventid, eventdata in events:
+                    self.query_socket.send(eventid, zmq.SNDMORE)
+                    self.query_socket.send(eventdata, zmq.SNDMORE)
                 self.query_socket.send("END")
+        else:
+            logging.warn("Could not identify request type: %s", requesttype)
+            self.query_socket.send("ERROR Unknown request type")
 
         return True
 
