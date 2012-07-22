@@ -25,6 +25,7 @@ class KeyValuePersister(collections.MutableMapping):
     _delimiter = " "
 
     class InsertError(Exception):
+        """Raised when trying to insert a malformed key or value."""
         pass
 
     def __init__(self, filename):
@@ -127,9 +128,16 @@ class EventStore(object):
     general needs to be implemented by its supclasses.
     """
     class EventKeyAlreadyExistError(LogBookKeyError):
+        """Raised when trying to add an event with a key already seen.
+
+        While it is recommended that `EventStore`s raise this exception, they
+        might not always. Maybe an `EventStore` can't hold most keys in memory
+        etcetera.
+        """
         pass
 
     class EventKeyDoesNotExistError(LogBookKeyError):
+        """Raised when querying with a key that does not exist."""
         pass
 
     def add_event(self, key, event):
