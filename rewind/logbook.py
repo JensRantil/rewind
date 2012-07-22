@@ -792,7 +792,7 @@ class LogBookRunner(object):
             except EventStore.EventKeyDoesNotExistError as e:
                 logger.exception("A client requested a key that does not"
                                  " exist:")
-                self.query_socket.send("ERROR")
+                self.query_socket.send("ERROR Key did not exist")
                 return True
 
             # Since we are using ZeroMQ enveloping we want to cap the
