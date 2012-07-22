@@ -60,6 +60,15 @@ def _get_public_bound_methods():
     return allmethods
 
 
+def _get_public_functions():
+    allfunctions = []
+    for module in modules:
+        functions = [(module.__name__+'.'+name, func) for name, func in inspect.getmembers(module)
+                     if inspect.isfunction(func) and not name.startswith('_')]
+        allfunctions.extend(functions)
+    return allfunctions
+
+
 class TestPydoc(unittest.TestCase):
     """Tests for pydoc."""
 
@@ -77,5 +86,13 @@ class TestPydoc(unittest.TestCase):
         self.assertNotEqual(len(methods), 0)
         for name, method in methods:
             doc = inspect.getdoc(method)
+            msg = "{0} lacks a Pydoc string.".format(name)
+            self.assertTrue(doc and len(doc) > 4, msg)
+
+    def testAllPublicFunctions(self):
+        functions = _get_public_functions()
+        self.assertNotEqual(len(functions), 0)
+        for name, function in functions:
+            doc = inspect.getdoc(function)
             msg = "{0} lacks a Pydoc string.".format(name)
             self.assertTrue(doc and len(doc) > 4, msg)
