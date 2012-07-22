@@ -1,3 +1,4 @@
+from __future__ import print_function
 import contextlib
 import itertools
 import random
@@ -37,7 +38,7 @@ class _TestEventStore:
 
         # Important to print this (for test reproducability) since N is
         # random.
-        print "Populating with {0} events...".format(N)
+        print("Populating with {0} events...".format(N))
         self.keys = [str(i) for i in range(N)]
         self.vals = [str(i+30) for i in range(N)]
         self.items = zip(self.keys, self.vals)
@@ -183,7 +184,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
                                 "Key did not exist: {0}".format(key))
 
     def _check_md5_is_correct(self, dirpath):
-        print "Directory:", dirpath
+        print("Directory:", dirpath)
         md5filename = os.path.join(dirpath, 'checksums.md5')
         self.assertTrue(os.path.exists(md5filename))
 
@@ -433,12 +434,12 @@ class TestCommandLineExecution(unittest.TestCase):
 
     def testStartingWithPersistence(self):
         datapath = tempfile.mkdtemp()
-        print "Using datapath:", datapath
+        print("Using datapath:", datapath)
 
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
-        print " ".join(args)
+        print(" ".join(args))
         self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
         self.logbook.start()
 

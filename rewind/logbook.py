@@ -1,3 +1,4 @@
+from __future__ import print_function
 import argparse
 import base64
 import collections
@@ -979,7 +980,7 @@ def main(argv=None):
         if exit:
             parser.error(errmsg)
         else:
-            print errmsg
+            print(errmsg)
             return 2
 
     exitcode = run(args)
