@@ -87,7 +87,7 @@ The receiving end is the end that received incoming events. Rewind does
 not make any assumptions about what an event looks like. In fact, it
 only sees it as a binary blob of bytes.
 
-Rewind uses a ZeroMQ SUB socket for receiving events. Every event is a
+Rewind uses a ZeroMQ PULL socket for receiving events. Every event is a
 single non-multipart message where the content of the message is the
 binary blob.
 
