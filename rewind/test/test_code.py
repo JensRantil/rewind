@@ -43,6 +43,23 @@ def _get_public_classes():
     return classes
 
 
+def _get_public_bound_methods():
+    allmethods = []
+    for classname, clazz in _get_public_classes():
+        assert inspect.isclass(clazz)
+        methods = [(classname+'.'+name, value)
+                   for name, value in inspect.getmembers(clazz)
+                   if not name.startswith('_') and inspect.ismethod(value)]
+
+        # Filtering out methods that were not defined in our modules (they were
+        # derived, that is)
+        methods = [(name, value) for name, value in methods
+                   if inspect.getmodule(value) in modules]
+
+        allmethods.extend(methods)
+    return allmethods
+
+
 class TestPydoc(unittest.TestCase):
     """Tests for pydoc."""
 
@@ -53,4 +70,12 @@ class TestPydoc(unittest.TestCase):
         for classname, clazz in classes:
             doc = inspect.getdoc(clazz)
             msg = "{0} lacks a Pydoc string.".format(classname)
+            self.assertTrue(doc and len(doc) > 4, msg)
+
+    def testAllPublicBoundMethods(self):
+        methods = _get_public_bound_methods()
+        self.assertNotEqual(len(methods), 0)
+        for name, method in methods:
+            doc = inspect.getdoc(method)
+            msg = "{0} lacks a Pydoc string.".format(name)
             self.assertTrue(doc and len(doc) > 4, msg)
