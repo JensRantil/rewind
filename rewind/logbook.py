@@ -388,7 +388,9 @@ class _LogEventStore(EventStore):
             self.f = None
 
     def add_event(self, key, event):
-        if all([char.isalnum() or char=='-' for char in key]):
+        assert isinstance(key, str)
+        assert isinstance(event, bytes)
+        if all([char.isalnum() or char == '-' for char in key]):
             safe_key = key
         else:
             raise ValueError("Key must be alphanumeric or a dash (-):"
@@ -433,6 +435,8 @@ class _LogEventStore(EventStore):
         Does never throw LogBookEventOrderError because it is hard to detect
         from an append-only file.
         """
+        assert from_ is None or isinstance(from_, str)
+        assert to is None or isinstance(to, str)
         self._close()
         try:
             return self._unsafe_get_events(from_=from_, to=to)
@@ -454,6 +458,7 @@ class _LogEventStore(EventStore):
 
         Makes a linear search and is very slow.
         """
+        assert isinstance(key, str)
         self._close()
         try:
             return self._unsafe_key_exists(key)

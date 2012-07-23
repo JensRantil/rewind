@@ -39,8 +39,8 @@ class _TestEventStore:
         # Important to print this (for test reproducability) since N is
         # random.
         print("Populating with {0} events...".format(N))
-        self.keys = [str(i) for i in range(N)]
-        self.vals = [str(i+30) for i in range(N)]
+        self.keys = ["{0}".format(i) for i in range(N)]
+        self.vals = ["{0}".format(i + 30).encode() for i in range(N)]
         self.items = list(zip(self.keys, self.vals))
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
@@ -76,11 +76,11 @@ class TestEventStore(unittest.TestCase):
     def testStubs(self):
         """Makes sure `EventStore` behaves the way we expect."""
         estore = logbook.EventStore()
-        self.assertRaises(NotImplementedError, estore.add_event, "key", "event")
+        self.assertRaises(NotImplementedError, estore.add_event, b"key", b"event")
         self.assertRaises(NotImplementedError, estore.get_events)
-        self.assertRaises(NotImplementedError, estore.get_events, "from")
-        self.assertRaises(NotImplementedError, estore.get_events, "from", "to")
-        self.assertRaises(NotImplementedError, estore.key_exists, "key")
+        self.assertRaises(NotImplementedError, estore.get_events, b"from")
+        self.assertRaises(NotImplementedError, estore.get_events, b"from", b"to")
+        self.assertRaises(NotImplementedError, estore.key_exists, b"key")
         estore.close() # Should not throw anything
 
 
@@ -218,15 +218,15 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
 
         mstore1 = logbook.InMemoryEventStore()
         mstore1.close = mock.MagicMock() # Needed for assertions
-        keys1 = [str(i) for i in range(N)]
-        vals1 = [str(i+30) for i in range(N)]
+        keys1 = [bytes(i) for i in range(N)]
+        vals1 = [bytes(i+30) for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
         mstore2 = logbook.InMemoryEventStore()
         mstore2.close = mock.MagicMock() # Needed for assertions
-        keys2 = [str(i+N) for i in range(N)]
-        vals2 = [str(i+30+N) for i in range(N)]
+        keys2 = [bytes(i+N) for i in range(N)]
+        vals2 = [bytes(i+30+N) for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 
@@ -290,11 +290,11 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         """Test writing to the rotated event store after rotation."""
         self.store.rotate()
 
-        self.assertFalse(self.store.key_exists('mykey'))
+        self.assertFalse(self.store.key_exists(b'mykey'))
         self.store.add_event('mykey', 'myvalue')
-        self.assertTrue(self.store.key_exists('mykey'),
+        self.assertTrue(self.store.key_exists(b'mykey'),
                         "The event was expected to have been written.")
-        self.assertTrue(self.mstore4.key_exists('mykey'),
+        self.assertTrue(self.mstore4.key_exists(b'mykey'),
                         "The event seem to have been written to wrong estore.")
 
     def testKeyExists(self):
@@ -329,7 +329,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         """Asserting we identify corrupt `LogEventStore` files."""
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
-            f.write("Random data %%%!!!??")
+            f.write(b"Random data %%%!!!??")
         self.assertRaises(logbook.LogBookCorruptionError,
                           logbook._LogEventStore,
                           self.tempfile.name)
@@ -460,7 +460,7 @@ class _LogbookThread(threading.Thread):
     thread rather than external process. This makes it possible to check code
     coverage and track exit codes etc.
     """
-    _EXIT_CODE = 'EXIT'
+    _EXIT_CODE = b'EXIT'
 
     def __init__(self, cmdline_args, exit_addr=None):
         """Constructor.
@@ -498,7 +498,7 @@ class _LogbookThread(threading.Thread):
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)
-        socket.send_unicode(_LogbookThread._EXIT_CODE)
+        socket.send(_LogbookThread._EXIT_CODE)
         time.sleep(0.5) # Acceptable exit time
         assert not self.isAlive()
         socket.close()
@@ -533,14 +533,14 @@ class TestLogbookReplication(unittest.TestCase):
         self.transmitter.setsockopt(zmq.LINGER, 1000)
 
     def testBasicEventProxying(self):
-        eventid = "abc12332fffgdgaab134432423"
-        eventstring = "THIS IS AN EVENT"
+        eventid = b"abc12332fffgdgaab134432423"
+        eventstring = b"THIS IS AN EVENT"
 
-        self.transmitter.send_unicode(eventstring)
+        self.transmitter.send(eventstring)
 
-        received_id = self.receiver.recv_unicode()
+        received_id = self.receiver.recv()
         self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
-        received_string = self.receiver.recv_unicode()
+        received_string = self.receiver.recv()
         self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
         self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
@@ -554,19 +554,19 @@ class TestLogbookReplication(unittest.TestCase):
         NMESSAGES = 200
         messages = []
         for id in range(NMESSAGES):
-            eventstring = "THIS IS EVENT NUMBER {0}".format(id)
+            eventstring = b"THIS IS EVENT NUMBER {0}".format(id)
             messages.append(eventstring)
 
         # Sending
         for msg in messages:
-            self.transmitter.send_unicode(msg)
+            self.transmitter.send(msg)
 
         # Receiving and asserting correct messages
         eventids = []
         for msg in messages:
-            received_id = self.receiver.recv_unicode()
+            received_id = self.receiver.recv()
             self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
-            received_string = self.receiver.recv_unicode()
+            received_string = self.receiver.recv()
             self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
             self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
@@ -619,8 +619,8 @@ class TestLogbookQuerying(unittest.TestCase):
 
         self.sent = []
         for id in ids:
-            eventstr = "Event with id '{0}'".format(id)
-            transmitter.send_unicode(eventstr)
+            eventstr = b"Event with id '{0}'".format(id)
+            transmitter.send(eventstr)
             self.sent.append(eventstr)
         transmitter.close()
 
