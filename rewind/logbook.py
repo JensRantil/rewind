@@ -630,7 +630,7 @@ class SyncedRotationEventStores(EventStore):
                             arbitrary and should probably be configures so that
                             files do not grow out of proportion.
         """
-        assert type(events_per_batch) is types.IntType, \
+        assert isinstance(events_per_batch, int), \
                 "Events per batch must be integer."
         assert events_per_batch > 0, "Events per batch must be positive"
         self.events_per_batch = events_per_batch
