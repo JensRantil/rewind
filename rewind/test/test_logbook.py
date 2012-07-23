@@ -41,7 +41,7 @@ class _TestEventStore:
         print("Populating with {0} events...".format(N))
         self.keys = [str(i) for i in range(N)]
         self.vals = [str(i+30) for i in range(N)]
-        self.items = zip(self.keys, self.vals)
+        self.items = list(zip(self.keys, self.vals))
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
@@ -268,7 +268,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         self.store = store
         self.keys = keys1 + keys2 + keys3
         self.vals = vals1 + vals2 + vals3
-        self.items = zip(self.keys, self.vals)
+        self.items = list(zip(self.keys, self.vals))
         self.keys3, self.vals3 = keys3, vals3
         self.estore_factory = estore_factory
         self.mstore1 = mstore1
