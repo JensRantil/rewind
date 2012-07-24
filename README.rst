@@ -2,6 +2,9 @@
 Rewind
 =======
 
+.. image:: https://secure.travis-ci.org/JensRantil/rewind.png?branch=develop
+   :target: http://travis-ci.org/#!/JensRantil/rewind
+
 Have you ever been nervous of all those DBMSs schema changes when you
 are deploying your applications? They are gonna take too long, or break
 backward compatibility? Have you ever thought "Crap, I wish I had stored
