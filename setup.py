@@ -41,6 +41,7 @@ setup(
     ],
     tests_require=[
         "mock==0.8",
+        "pep8==1.3.3",
     ],
     test_suite="rewind.test",
     entry_points={
