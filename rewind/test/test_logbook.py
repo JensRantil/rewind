@@ -76,10 +76,12 @@ class TestEventStore(unittest.TestCase):
     def testStubs(self):
         """Makes sure `EventStore` behaves the way we expect."""
         estore = logbook.EventStore()
-        self.assertRaises(NotImplementedError, estore.add_event, b"key", b"event")
+        self.assertRaises(NotImplementedError, estore.add_event, b"key",
+                          b"event")
         self.assertRaises(NotImplementedError, estore.get_events)
         self.assertRaises(NotImplementedError, estore.get_events, b"from")
-        self.assertRaises(NotImplementedError, estore.get_events, b"from", b"to")
+        self.assertRaises(NotImplementedError, estore.get_events, b"from",
+                          b"to")
         self.assertRaises(NotImplementedError, estore.key_exists, b"key")
         estore.close() # Should not throw anything
 
@@ -131,9 +133,9 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             fname_absolute = os.path.join(params['dirpath'],
                                           "{0}.0".format(params['prefix']))
 
-            # If it wasn't for the fact that this class function was called from
-            # testReopening, we would be able to also assert that the factory
-            # was called with correct parameters.
+            # If it wasn't for the fact that this class function was called
+            # from testReopening, we would be able to also assert that the
+            # factory was called with correct parameters.
             self.assertEqual(factory.call_count, 1)
 
             rotated_stores.append(rotated_store)
@@ -418,7 +420,8 @@ class TestCommandLineExecution(unittest.TestCase):
 
     def testOnlyStreamingEndpointFails(self):
         with _direct_stderr_to_stdout():
-            logbook = _LogbookThread(['--streaming-bind-endpoint', 'tcp://hello'])
+            logbook = _LogbookThread(['--streaming-bind-endpoint',
+                                      'tcp://hello'])
             logbook.start()
             logbook.join(2)
         self.assertFalse(logbook.isAlive())
@@ -473,7 +476,8 @@ class _LogbookThread(threading.Thread):
 
         assert '--exit-codeword' not in cmdline_args, \
                 "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
-        cmdline_args = ['--exit-codeword', _LogbookThread._EXIT_CODE] + cmdline_args
+        cmdline_args = (['--exit-codeword', _LogbookThread._EXIT_CODE] +
+                        cmdline_args)
 
         def exitcode_runner(*args, **kwargs):
             try:
@@ -714,8 +718,8 @@ class TestKeyValuePersister(unittest.TestCase):
         faulty_kvs = [("a key", "value"), ("key ", "value"), (" key", "value"),
                       ("multiline\nkey", "value"), ("key", "multiline\nvalue")]
         for key, val in faulty_kvs:
-            self.assertRaises(logbook.KeyValuePersister.InsertError,
-                              lambda: self.keyvalpersister.__setitem__(key, val))
+            setter = lambda: self.keyvalpersister.__setitem__(key, val)
+            self.assertRaises(logbook.KeyValuePersister.InsertError, setter)
 
     def testAppendingKeyContainingDelimiter(self):
         self._assert_delimieter_key_exception()
@@ -758,7 +762,8 @@ class TestKeyValuePersister(unittest.TestCase):
         __delitem__ is not really used, but we want to keep 100% coverage,
         so...
         """
-        self.assertRaises(NotImplementedError, self.keyvalpersister.__delitem__,
+        self.assertRaises(NotImplementedError,
+                          self.keyvalpersister.__delitem__,
                           self.keyvals.keys()[0])
 
     def testFileOutput(self):

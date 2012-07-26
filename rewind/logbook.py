@@ -52,8 +52,8 @@ class KeyValuePersister(collections.MutableMapping):
     def _read_keyvals(filename):
         """Read the key/values if the file exists.
 
-        returns -- a dictionary with key/values, or empty dictionary if the file
-                   does not exist.
+        returns -- a dictionary with key/values, or empty dictionary if the
+                   file does not exist.
         """
         if os.path.exists(filename):
             return KeyValuePersister._actually_populate_keyvals(filename)
@@ -227,7 +227,8 @@ class InMemoryEventStore(EventStore):
                    " Indices: ({2}, {3})").format(from_, to, fromindex,
                                                   toindex)
             raise LogBookEventOrderError(msg)
-        return ((key, self.events[key]) for key in self.keys[fromindex:toindex])
+        return ((key, self.events[key])
+                for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
         """See `EventStore.key_exists(...)`."""
@@ -289,7 +290,8 @@ class _SQLiteEventStore(EventStore):
                                          " 'from_'.")
 
         if toindex:
-            sql = 'SELECT uuid, event FROM events WHERE eventid BETWEEN ? AND ?'
+            sql = ('SELECT uuid, event FROM events '
+                   'WHERE eventid BETWEEN ? AND ?')
             params = (fromindex, toindex)
         else:
             sql = 'SELECT uuid, event FROM events WHERE eventid >= ?'
@@ -607,7 +609,8 @@ class RotatedEventStore(EventStore):
                                                          event_ranges):
             estore = self._open_event_store(batchno)
             with contextlib.closing(estore):
-                for eventtuple in estore.get_events(from_in_batch, to_in_batch):
+                for eventtuple in estore.get_events(from_in_batch,
+                                                    to_in_batch):
                     yield eventtuple
 
     def key_exists(self, key):
@@ -623,8 +626,8 @@ class RotatedEventStore(EventStore):
 class SyncedRotationEventStores(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
 
-    Rotation is done at the same time for all event stores to make sure they are
-    kept in sync.
+    Rotation is done at the same time for all event stores to make sure they
+    are kept in sync.
     """
     def __init__(self, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
@@ -851,7 +854,8 @@ def zmq_context_context(*args):
 
 
 @contextlib.contextmanager
-def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
+def zmq_socket_context(context, socket_type, bind_endpoints,
+                       connect_endpoints):
     """A ZeroMQ socket context that both constructs a socket and closes it."""
     socket = context.socket(socket_type)
     try:
@@ -904,8 +908,8 @@ def run(args):
                 as streaming_socket:
         # Executing the program in the context of ZeroMQ context as well as
         # ZeroMQ sockets. Using with here to make sure are correctly closing
-        # things in the correct order, particularly also if we have an exception
-        # or similar.
+        # things in the correct order, particularly also if we have an
+        # exception or similar.
 
         runner = LogBookRunner(eventstore, incoming_socket, query_socket,
                                streaming_socket, args.exit_message)
@@ -969,7 +973,8 @@ def main(argv=None):
                               dest='streaming_bind_endpoints')
     stream_group.add_argument('--streaming-connect-endpoint',
                               metavar='ZEROMQ-ENDPOINT', default=[],
-                              help='the connect address for streaming of events',
+                              help=('the connect address for streaming of '
+                                    'events'),
                               action='append',
                               dest='streaming_connect_endpoints')
 
