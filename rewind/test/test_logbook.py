@@ -114,9 +114,9 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         mocked_factories = []
 
         for params in self.rotated_estore_params:
-            if params['prefix']=='logdb':
+            if params['prefix'] == 'logdb':
                 factory = logbook._SQLiteEventStore
-            elif params['prefix']=='appendlog':
+            elif params['prefix'] == 'appendlog':
                 factory = logbook._LogEventStore
             else:
                 self.fail('Unrecognized prefix.')
@@ -190,7 +190,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
         checksums = logbook.KeyValuePersister(md5filename)
         files = [fname for fname in os.listdir(dirpath) if
-                 fname!='checksums.md5']
+                 fname != 'checksums.md5']
         self.assertEqual(set(files), set(checksums.keys()))
 
         for fname, checksum in checksums.iteritems():
@@ -219,14 +219,14 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         mstore1 = logbook.InMemoryEventStore()
         mstore1.close = mock.MagicMock() # Needed for assertions
         keys1 = [bytes(i) for i in range(N)]
-        vals1 = [bytes(i+30) for i in range(N)]
+        vals1 = [bytes(i + 30) for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
         mstore2 = logbook.InMemoryEventStore()
         mstore2.close = mock.MagicMock() # Needed for assertions
-        keys2 = [bytes(i+N) for i in range(N)]
-        vals2 = [bytes(i+30+N) for i in range(N)]
+        keys2 = [bytes(i + N) for i in range(N)]
+        vals2 = [bytes(i + 30 + N) for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 

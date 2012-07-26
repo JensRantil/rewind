@@ -218,9 +218,9 @@ class InMemoryEventStore(EventStore):
                 "Could not find the from_ key: {0}".format(to))
 
         # +1 here because we have already seen the event we are asking for
-        fromindex = self.keys.index(from_)+1 if from_ else 0
+        fromindex = self.keys.index(from_) + 1 if from_ else 0
 
-        toindex = self.keys.index(to)+1 if to else len(self.events)
+        toindex = self.keys.index(to) + 1 if to else len(self.events)
         if fromindex > toindex:
             msg = ("'From' index came after 'To'."
                    " Keys: ({0}, {1})"
@@ -261,7 +261,7 @@ class _SQLiteEventStore(EventStore):
             cursor.execute('PRAGMA integrity_check(1)')
             res = cursor.fetchone()
             status = res[0]
-            assert status=='ok', \
+            assert status == 'ok', \
                     "Integrity check failed when opening SQLite." \
                     " Actual status: {0}".format(status)
 
@@ -282,7 +282,7 @@ class _SQLiteEventStore(EventStore):
             raise EventStore.EventKeyDoesNotExistError(msg)
 
         # +1 below because we have already seen the event
-        fromindex = self._get_eventid(from_)+1 if from_ else 0
+        fromindex = self._get_eventid(from_) + 1 if from_ else 0
         toindex = self._get_eventid(to) if to else None
         if from_ and to and fromindex > toindex:
             raise LogBookEventOrderError("'to' happened cronologically before"
@@ -396,7 +396,7 @@ class _LogEventStore(EventStore):
             raise ValueError("Key must be alphanumeric or a dash (-):"
                              " {0}".format(key))
         safe_event = base64.encodestring(event).strip()
-        if not all([char.isalnum() or char=='=' for char in safe_event]):
+        if not all([char.isalnum() or char == '=' for char in safe_event]):
             raise ValueError("Safe event string must be alphanumeric or '=':"
                              " {0}".format(safe_event))
         data = "{0}\t{1}\n".format(safe_key, safe_event)
@@ -504,9 +504,9 @@ class RotatedEventStore(EventStore):
                  if fname not in ignored_files]
 
         identified_files = [fname for fname in files
-                            if fname.startswith(prefix+'.')]
+                            if fname.startswith(prefix + '.')]
         not_identified_files = [fname for fname in files
-                                if not fname.startswith(prefix+'.')]
+                                if not fname.startswith(prefix + '.')]
         if not_identified_files:
             self.logger.warn("The following files could not be identified"
                              " (lacking prefix '%s'):", prefix)
@@ -564,7 +564,7 @@ class RotatedEventStore(EventStore):
             # Reusing already opened DB if possible
             return self.batchno
         else:
-            for batchno in range(self.batchno-1, -1, -1):
+            for batchno in range(self.batchno - 1, -1, -1):
                 # Iterating backwards here because we are more likely to find
                 # the event in an later archive, than earlier.
                 db = self._open_event_store(batchno)
@@ -594,14 +594,14 @@ class RotatedEventStore(EventStore):
         else:
             tobatchno = self.batchno
 
-        batchno_range = range(frombatchno, tobatchno+1)
+        batchno_range = range(frombatchno, tobatchno + 1)
         nbatches = len(batchno_range)
-        if nbatches==1:
+        if nbatches == 1:
             event_ranges = [(from_, to)]
         else:
             event_ranges = itertools.chain([(from_, None)],
                                            itertools.repeat((None,None),
-                                                            nbatches-2),
+                                                            nbatches - 2),
                                            [(None, to)])
         for batchno, (from_in_batch, to_in_batch) in zip(batchno_range,
                                                          event_ranges):
@@ -762,17 +762,17 @@ class LogBookRunner(object):
         socks = dict(self.poller.poll())
 
         if self.incoming_socket in socks \
-           and socks[self.incoming_socket]==zmq.POLLIN:
+           and socks[self.incoming_socket] == zmq.POLLIN:
             return self._handle_incoming_event()
         elif self.query_socket in socks \
-                and socks[self.query_socket]==zmq.POLLIN:
+                and socks[self.query_socket] == zmq.POLLIN:
             return self._handle_query()
 
     def _handle_incoming_event(self):
         """Handle an incoming event."""
         eventstr = self.incoming_socket.recv()
 
-        if self.exit_message and eventstr==self.exit_message:
+        if self.exit_message and eventstr == self.exit_message:
             return False
 
         newid = self.id_generator.generate()
@@ -817,9 +817,9 @@ class LogBookRunner(object):
             # Otherwise we might run out of memory for a lot of events.
             MAX_ELMNTS_PER_REQ = 100
 
-            events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
+            events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ + 1)
             events = list(events)
-            if len(events)==MAX_ELMNTS_PER_REQ+1:
+            if len(events) == MAX_ELMNTS_PER_REQ + 1:
                 # There are more elements, but we are capping the result
                 for eventid, eventdata in events[:-1]:
                     self.query_socket.send(eventid, zmq.SNDMORE)
