@@ -83,7 +83,7 @@ class TestEventStore(unittest.TestCase):
         self.assertRaises(NotImplementedError, estore.get_events, b"from",
                           b"to")
         self.assertRaises(NotImplementedError, estore.key_exists, b"key")
-        estore.close() # Should not throw anything
+        estore.close()  # Should not throw anything
 
 
 class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
@@ -219,21 +219,21 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         N = 20
 
         mstore1 = logbook.InMemoryEventStore()
-        mstore1.close = mock.MagicMock() # Needed for assertions
+        mstore1.close = mock.MagicMock()  # Needed for assertions
         keys1 = [bytes(i) for i in range(N)]
         vals1 = [bytes(i + 30) for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
         mstore2 = logbook.InMemoryEventStore()
-        mstore2.close = mock.MagicMock() # Needed for assertions
+        mstore2.close = mock.MagicMock()  # Needed for assertions
         keys2 = [bytes(i + N) for i in range(N)]
         vals2 = [bytes(i + 30 + N) for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 
         mstore3 = logbook.InMemoryEventStore()
-        mstore3.close = mock.MagicMock() # Needed for assertions
+        mstore3.close = mock.MagicMock()  # Needed for assertions
         keys3 = ['one', 'two', 'three']
         vals3 = ['four', 'five', 'six']
         for key, val in zip(keys3, vals3):
@@ -315,7 +315,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
                                                     suffix='.log',
                                                     delete=False)
-        self.tempfile.close() # We are not to modify it directly
+        self.tempfile.close()  # We are not to modify it directly
         self.store = logbook._LogEventStore(self.tempfile.name)
 
         self._populate_store()
@@ -347,7 +347,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
                                                     suffix='sqlite_evstore',
                                                     delete=False)
-        self.tempfile.close() # We are not to modify it directly
+        self.tempfile.close()  # We are not to modify it directly
         self.store = logbook._SQLiteEventStore(self.tempfile.name)
 
         self._populate_store()
@@ -503,7 +503,7 @@ class _LogbookThread(threading.Thread):
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)
         socket.send(_LogbookThread._EXIT_CODE)
-        time.sleep(0.5) # Acceptable exit time
+        time.sleep(0.5)  # Acceptable exit time
         assert not self.isAlive()
         socket.close()
 
@@ -629,28 +629,28 @@ class TestLogbookQuerying(unittest.TestCase):
         transmitter.close()
 
     def testSyncAllPastEvents(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event[1] for event in self.querier.query()]
         self.assertEqual(allevents, self.sent)
 
         self.assertEqual(allevents, self.sent, "Elements don't match.")
 
     def testSyncEventsSince(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         from_ = allevents[3][0]
         events = [event[1] for event in self.querier.query(from_=from_)]
         self.assertEqual([event[1] for event in allevents[4:]], events)
 
     def testSyncEventsBefore(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         to = allevents[-3][0]
         events = [event[1] for event in self.querier.query(to=to)]
         self.assertEqual([event[1] for event in allevents[:-2]], events)
 
     def testSyncEventsBetween(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         from_ = allevents[3][0]
         to = allevents[-3][0]
@@ -771,7 +771,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self._write_keyvals()
 
         self.keyvalpersister.close()
-        self.keyvalpersister = None # Needed so tearDown doesn't close
+        self.keyvalpersister = None  # Needed so tearDown doesn't close
 
         with open(self.keyvalfile) as f:
             content = f.read()
