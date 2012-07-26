@@ -51,7 +51,7 @@ class KeyValuePersister(collections.MutableMapping):
     @staticmethod
     def _read_keyvals(filename):
         """Read the key/values if the file exists.
-        
+
         returns -- a dictionary with key/values, or empty dictionary if the file
                    does not exist.
         """
@@ -138,7 +138,7 @@ class LogBookCorruptionError(Exception):
 
 class EventStore(object):
     """Stores events and keeps track of their order.
-    
+
     This class is here mostly for documentation. It shows which methods in
     general needs to be implemented by its supclasses.
     """
@@ -157,7 +157,7 @@ class EventStore(object):
 
     def add_event(self, key, event):
         """Adds an event with key to the store.
-        
+
         Parameters:
         key   -- the key used to reference the event. The key must be a string.
         event -- the serialized event. The event must be a string or data.
@@ -216,7 +216,7 @@ class InMemoryEventStore(EventStore):
         if to and (to not in self.keys or to not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
                 "Could not find the from_ key: {0}".format(to))
-        
+
         # +1 here because we have already seen the event we are asking for
         fromindex = self.keys.index(from_)+1 if from_ else 0
 
@@ -329,7 +329,7 @@ class _SQLiteEventStore(EventStore):
 
     def close(self):
         """Close the event store.
-        
+
         Important to close to not have any file descriptor leakages.
         """
         if self.conn:
@@ -375,7 +375,7 @@ class _LogEventStore(EventStore):
            checksum_persister[fname] != self._hasher.hexdigest():
             msg = "The file '{0}' was had wrong md5.".format(path)
             raise LogBookCorruptionError(msg)
-        
+
         self._path = path
         self._open()
 
@@ -400,7 +400,7 @@ class _LogEventStore(EventStore):
             raise ValueError("Safe event string must be alphanumeric or '=':"
                              " {0}".format(safe_event))
         data = "{0}\t{1}\n".format(safe_key, safe_event)
-        
+
         # Important to make a single atomic write here
         self._hasher.update(data)
         self.f.write(data)
@@ -578,7 +578,7 @@ class RotatedEventStore(EventStore):
 
         It also queries older event archives until it finds the event UUIDs
         necessary.
-        
+
         See `EventStore.add_event(...)` for details.
         """
         if from_:
@@ -622,13 +622,13 @@ class RotatedEventStore(EventStore):
 
 class SyncedRotationEventStores(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
-    
+
     Rotation is done at the same time for all event stores to make sure they are
     kept in sync.
     """
     def __init__(self, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
-        
+
         Parameters:
         events_per_batch -- number of events stored in a batch before rotating
                             the files. Defaults to 25000. That number is
@@ -698,7 +698,7 @@ class SyncedRotationEventStores(EventStore):
 
     def get_events(self, from_=None, to=None):
         """Query events.
-        
+
         The events are queried from the event store that was added first using
         `add_rotated_store(...)`.
 
@@ -776,7 +776,7 @@ class LogBookRunner(object):
             return False
 
         newid = self.id_generator.generate()
-        
+
         # Make sure newid is not part of our request vocabulary
         assert newid != "QUERY", \
                 "Generated ID must not be part of req/rep vocabulary."

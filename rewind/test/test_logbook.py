@@ -172,7 +172,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self._openStore()
         events_after_reload = self.store.get_events()
         self.assertEqual(list(events_before_reload), list(events_after_reload))
-        
+
     def testKeyExists(self):
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
@@ -299,7 +299,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
 
     def testKeyExists(self):
         """Testing RotatedEventStore.key_exists(...).
-        
+
         Overriding this test, because RotatedEventStore.key_exists(...) only
         checks the last batch.
         """
@@ -315,9 +315,9 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                                                     delete=False)
         self.tempfile.close() # We are not to modify it directly
         self.store = logbook._LogEventStore(self.tempfile.name)
-        
+
         self._populate_store()
-    
+
     def testReopenWithClose(self):
         self.store.close()
         self.store = logbook._LogEventStore(self.tempfile.name)
@@ -347,7 +347,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
                                                     delete=False)
         self.tempfile.close() # We are not to modify it directly
         self.store = logbook._SQLiteEventStore(self.tempfile.name)
-        
+
         self._populate_store()
 
     def testCount(self):
@@ -375,7 +375,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
     def tearDown(self):
         self.store.close()
         os.remove(self.tempfile.name)
-        
+
 
 class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
     """Test `InMemoryEventStore`."""
@@ -387,7 +387,7 @@ class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
 @contextlib.contextmanager
 def _direct_stderr_to_stdout():
     """Context manager for wrapping tests that prints to stderr.
-    
+
     Nosetests does not capture stderr.
     """
     real_stderr = sys.stderr
@@ -637,7 +637,7 @@ class TestLogbookQuerying(unittest.TestCase):
         from_ = allevents[3][0]
         events = [event[1] for event in self.querier.query(from_=from_)]
         self.assertEqual([event[1] for event in allevents[4:]], events)
-        
+
     def testSyncEventsBefore(self):
         time.sleep(0.5) # Max time to persist the messages
         allevents = [event for event in self.querier.query()]

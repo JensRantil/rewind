@@ -54,7 +54,7 @@ class EventQuerier(object):
                 eventid = data
                 assert self.socket.getsockopt(zmq.RCVMORE)
                 eventdata = self.socket.recv()
-    
+
                 eventtuple = (eventid, eventdata)
                 events.append(eventtuple)
 
@@ -62,4 +62,3 @@ class EventQuerier(object):
                 more = False
 
         return done, events
-
