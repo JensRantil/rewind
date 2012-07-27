@@ -242,7 +242,7 @@ class _SQLiteEventStore(EventStore):
         checksum_persister = _get_checksum_persister(path)
         hasher = _initialize_hasher(path)
         if (fname in checksum_persister and
-            checksum_persister[fname] != hasher.hexdigest()):
+                checksum_persister[fname] != hasher.hexdigest()):
             msg = "The file '{0}' had wrong md5 checksum.".format(path)
             raise LogBookCorruptionError(msg)
 
@@ -374,7 +374,7 @@ class _LogEventStore(EventStore):
         fname = os.path.basename(path)
         checksum_persister = _get_checksum_persister(path)
         if (fname in checksum_persister and
-            checksum_persister[fname] != self._hasher.hexdigest()):
+                checksum_persister[fname] != self._hasher.hexdigest()):
             msg = "The file '{0}' was had wrong md5.".format(path)
             raise LogBookCorruptionError(msg)
 
@@ -765,7 +765,7 @@ class LogBookRunner(object):
         socks = dict(self.poller.poll())
 
         if (self.incoming_socket in socks and
-            socks[self.incoming_socket] == zmq.POLLIN):
+                socks[self.incoming_socket] == zmq.POLLIN):
             return self._handle_incoming_event()
         elif (self.query_socket in socks
               and socks[self.query_socket] == zmq.POLLIN):
@@ -981,10 +981,10 @@ def main(argv=None):
     args = argv if argv is not None else sys.argv[1:]
     args = parser.parse_args(args)
 
-    if not args.incoming_bind_endpoints \
-        and not args.incoming_connect_endpoints \
-        and not args.query_bind_endpoints \
-        and not args.query_connect_endpoints:
+    if (not args.incoming_bind_endpoints and
+            not args.incoming_connect_endpoints and
+            not args.query_bind_endpoints and
+            not args.query_connect_endpoints):
         errmsg = ("You must either specify an incoming or query endpoint.\n"
                   "(there's no use in simply having a streaming endpoint)")
         if exit:
