@@ -20,7 +20,7 @@ class TestCodeFormat(unittest.TestCase):
         pyfiles = self._get_all_pyfiles()
         result = pep8style.check_files(pyfiles)
 
-        # Currently one E702 and two E301:s fail. I find those checks to be
+        # Currently two E301:s fail. I find those checks to be
         # buggy and will report them to the pep8 project on github.
-        self.assertEqual(result.total_errors, 3,
+        self.assertEqual(result.total_errors, 2,
                          "Found code syntax errors (and warnings).")

@@ -255,7 +255,7 @@ class _SQLiteEventStore(EventStore):
                 uuid TEXT UNIQUE,
                 event BLOB
             );
-        ''');
+        ''')
 
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
