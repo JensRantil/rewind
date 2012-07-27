@@ -776,8 +776,8 @@ class TestKeyValuePersister(unittest.TestCase):
         with open(self.keyvalfile) as f:
             content = f.read()
             actual_lines = content.splitlines()
-            expected_lines = ["{0} {1}".format(k,v)
-                              for k,v in self.keyvals.iteritems()]
+            expected_lines = ["{0} {1}".format(k, v)
+                              for k, v in self.keyvals.iteritems()]
         self.assertEquals(actual_lines, expected_lines)
 
     def testOpeningNonExistingFile(self):

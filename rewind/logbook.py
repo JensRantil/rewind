@@ -602,7 +602,7 @@ class RotatedEventStore(EventStore):
             event_ranges = [(from_, to)]
         else:
             event_ranges = itertools.chain([(from_, None)],
-                                           itertools.repeat((None,None),
+                                           itertools.repeat((None, None),
                                                             nbatches - 2),
                                            [(None, to)])
         for batchno, (from_in_batch, to_in_batch) in zip(batchno_range,
