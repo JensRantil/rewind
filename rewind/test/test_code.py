@@ -14,7 +14,6 @@ class TestCodeFormat(unittest.TestCase):
                             if filename.endswith('.py')])
         return pyfiles
 
-
     def testPep8Conformance(self):
         """Test that we conform to PEP8."""
         pep8style = pep8.StyleGuide()
