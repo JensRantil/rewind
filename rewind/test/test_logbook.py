@@ -127,7 +127,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
             with mock.patch('os.mkdir', side_effect=os.mkdir) as mkdir_mock:
                 rotated_store = logbook.RotatedEventStore(factory,
-                                                                 **params)
+                                                          **params)
                 mkdir_mock.assert_called_once(params['dirpath'])
 
             fname_absolute = os.path.join(params['dirpath'],
@@ -257,8 +257,8 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
             exists_mock.return_value = True
             listdir_mock.return_value = ['eventdb.0', 'eventdb.1', 'eventdb.2']
             store = logbook.RotatedEventStore(estore_factory,
-                                                     '/random_dir',
-                                                     'eventdb')
+                                              '/random_dir',
+                                              'eventdb')
             exists_mock.assert_called_with('/random_dir')
             self.assertTrue(listdir_mock.call_count > 0)
 
@@ -324,7 +324,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         self.store = logbook._LogEventStore(self.tempfile.name)
         self.assertEqual(len(self.keys), len(self.vals),
-                        "Keys and vals did not match in number.")
+                         "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
 
     def testCorruptionCheckOnOpen(self):
@@ -354,7 +354,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
     def testCount(self):
         self.assertEqual(len(self.keys), len(self.vals),
-                        "Keys and vals did not match in number.")
+                         "Keys and vals did not match in number.")
         self.assertTrue(self.store.count() == len(self.keys),
                         "Count was incorrect.")
 
@@ -475,7 +475,7 @@ class _LogbookThread(threading.Thread):
         thread = self
 
         assert '--exit-codeword' not in cmdline_args, \
-                "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
+               "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
         cmdline_args = (['--exit-codeword', _LogbookThread._EXIT_CODE] +
                         cmdline_args)
 
@@ -511,7 +511,7 @@ class _LogbookThread(threading.Thread):
 class TestLogbookReplication(unittest.TestCase):
 
     UUID_REGEXP = ("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-"
-                    "[0-9a-f]{12}")
+                   "[0-9a-f]{12}")
 
     def setUp(self):
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',

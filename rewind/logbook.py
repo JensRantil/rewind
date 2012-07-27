@@ -241,8 +241,8 @@ class _SQLiteEventStore(EventStore):
         fname = os.path.basename(path)
         checksum_persister = _get_checksum_persister(path)
         hasher = _initialize_hasher(path)
-        if fname in checksum_persister and \
-           checksum_persister[fname] != hasher.hexdigest():
+        if (fname in checksum_persister and
+            checksum_persister[fname] != hasher.hexdigest()):
             msg = "The file '{0}' had wrong md5 checksum.".format(path)
             raise LogBookCorruptionError(msg)
 
@@ -263,15 +263,15 @@ class _SQLiteEventStore(EventStore):
             res = cursor.fetchone()
             status = res[0]
             assert status == 'ok', \
-                    "Integrity check failed when opening SQLite." \
-                    " Actual status: {0}".format(status)
+                ("Integrity check failed when opening SQLite."
+                 " Actual status: {0}".format(status))
 
         self._path = path
 
     def add_event(self, key, event):
         """See `EventStore.add_event(...)`."""
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
-                     (key, event))
+                          (key, event))
 
     def get_events(self, from_=None, to=None):
         """See `EventStore.get_events(...)`."""
@@ -373,8 +373,8 @@ class _LogEventStore(EventStore):
 
         fname = os.path.basename(path)
         checksum_persister = _get_checksum_persister(path)
-        if fname in checksum_persister and \
-           checksum_persister[fname] != self._hasher.hexdigest():
+        if (fname in checksum_persister and
+            checksum_persister[fname] != self._hasher.hexdigest()):
             msg = "The file '{0}' was had wrong md5.".format(path)
             raise LogBookCorruptionError(msg)
 
@@ -639,7 +639,7 @@ class SyncedRotationEventStores(EventStore):
                             files do not grow out of proportion.
         """
         assert isinstance(events_per_batch, int), \
-                "Events per batch must be integer."
+            "Events per batch must be integer."
         assert events_per_batch > 0, "Events per batch must be positive"
         self.events_per_batch = events_per_batch
         self.count = 0
@@ -648,7 +648,7 @@ class SyncedRotationEventStores(EventStore):
     def add_rotated_store(self, rotated_store):
         """Add a `RotatedEventStore` that shall be rotated with the others."""
         assert self.count == 0, \
-                "Must not have written before adding additional estores"
+            "Must not have written before adding additional estores"
         self.stores.append(rotated_store)
 
     def _rotate_files_if_needed(self):
@@ -764,11 +764,11 @@ class LogBookRunner(object):
         """
         socks = dict(self.poller.poll())
 
-        if self.incoming_socket in socks \
-           and socks[self.incoming_socket] == zmq.POLLIN:
+        if (self.incoming_socket in socks and
+            socks[self.incoming_socket] == zmq.POLLIN):
             return self._handle_incoming_event()
-        elif self.query_socket in socks \
-                and socks[self.query_socket] == zmq.POLLIN:
+        elif (self.query_socket in socks
+              and socks[self.query_socket] == zmq.POLLIN):
             return self._handle_query()
 
     def _handle_incoming_event(self):
@@ -782,9 +782,9 @@ class LogBookRunner(object):
 
         # Make sure newid is not part of our request vocabulary
         assert newid != "QUERY", \
-                "Generated ID must not be part of req/rep vocabulary."
+            "Generated ID must not be part of req/rep vocabulary."
         assert not newid.startswith("ERROR"), \
-                "Generated ID must not be part of req/rep vocabulary."
+            "Generated ID must not be part of req/rep vocabulary."
 
         # Important this is done before forwarding to the streaming socket
         self.eventstore.add_event(newid, eventstr)
@@ -899,13 +899,13 @@ def run(args):
     with zmq_context_context(3) as context, \
             zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
                                args.incoming_connect_endpoints) \
-                as incoming_socket, \
+            as incoming_socket, \
             zmq_socket_context(context, zmq.REP, args.query_bind_endpoints,
                                args.query_connect_endpoints) \
-                as query_socket, \
+            as query_socket, \
             zmq_socket_context(context, zmq.PUB, args.streaming_bind_endpoints,
                                args.streaming_connect_endpoints) \
-                as streaming_socket:
+            as streaming_socket:
         # Executing the program in the context of ZeroMQ context as well as
         # ZeroMQ sockets. Using with here to make sure are correctly closing
         # things in the correct order, particularly also if we have an
@@ -982,11 +982,11 @@ def main(argv=None):
     args = parser.parse_args(args)
 
     if not args.incoming_bind_endpoints \
-       and not args.incoming_connect_endpoints \
-       and not args.query_bind_endpoints \
-       and not args.query_connect_endpoints:
-        errmsg = "You must either specify an incoming or query endpoint.\n" \
-                "(there's no use in simply having a streaming endpoint)"
+        and not args.incoming_connect_endpoints \
+        and not args.query_bind_endpoints \
+        and not args.query_connect_endpoints:
+        errmsg = ("You must either specify an incoming or query endpoint.\n"
+                  "(there's no use in simply having a streaming endpoint)")
         if exit:
             parser.error(errmsg)
         else:
