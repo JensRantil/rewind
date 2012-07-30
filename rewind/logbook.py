@@ -367,7 +367,7 @@ def _hashfile(afile, hasher, blocksize=65536):
 def _initialize_hasher(path):
     hasher = hashlib.md5()
     if os.path.exists(path):
-        with open(path) as f:
+        with open(path, 'rb') as f:
             _hashfile(f, hasher)
     return hasher
 
