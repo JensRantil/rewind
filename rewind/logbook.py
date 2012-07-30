@@ -98,17 +98,23 @@ class KeyValuePersister(collections.MutableMapping):
             msg = "Value must not contain any newline. It did: {0}"
             raise KeyValuePersister.InsertError(msg.format(val))
         if key in self._keyvals:
-            self._keyvals[key] = val
             self.close()
-            # Rewriting the whole file serially. Yes, it's a slow operation, but
-            # hey - it's an ascii file
-            with open(self._filename, 'wb') as f:
-                for key, val in self._keyvals.iteritems():
-                    f.write("%s%s%s\n" % (key, self._delimiter, val))
-            self._open()
-        else:
+            oldval = self._keyvals[key]
             self._keyvals[key] = val
+            try:
+                with open(self._filename, 'wb') as f:
+                    # Rewriting the whole file serially. Yes, it's a slow
+                    # operation, but hey - it's an ascii file
+                    for key, val in self._keyvals.iteritems():
+                        f.write("%s%s%s\n" % (key, self._delimiter, val))
+            except Exception as e:
+                self._keyvals[key] = oldval
+                raise e
+            finally:
+                self._open()
+        else:
             self._file.write("%s%s%s\n" % (key, self._delimiter, val))
+            self._keyvals[key] = val
 
 
 class LogBookKeyError(KeyError):
