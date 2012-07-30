@@ -476,7 +476,8 @@ class _LogbookThread(threading.Thread):
 
         assert '--exit-codeword' not in cmdline_args, \
                "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
-        cmdline_args = (['--exit-codeword', _LogbookThread._EXIT_CODE] +
+        cmdline_args = (['--exit-codeword',
+                         _LogbookThread._EXIT_CODE.decode()] +
                         cmdline_args)
 
         def exitcode_runner(*args, **kwargs):
@@ -676,9 +677,9 @@ class TestLogbookQuerying(unittest.TestCase):
 
 class TestKeyValuePersister(unittest.TestCase):
     keyvals = {
-        'key1': 'val1',
-        'key2': 'value number two',
-        'key3': 'val3',
+        b'key1': b'val1',
+        b'key2': b'value number two',
+        b'key3': b'val3',
     }
 
     def setUp(self):
@@ -701,11 +702,11 @@ class TestKeyValuePersister(unittest.TestCase):
         self.namedfile = None
 
     def _write_keyvals(self):
-        for key, val in self.keyvals.iteritems():
+        for key, val in self.keyvals.items():
             self.keyvalpersister[key] = val
 
     def _assertValuesWereWritten(self):
-        for key, val in self.keyvals.iteritems():
+        for key, val in self.keyvals.items():
             self.assertTrue(key in self.keyvalpersister)
             self.assertEqual(self.keyvalpersister[key], val)
         self.assertEqual(len(self.keyvalpersister), len(self.keyvals))
@@ -715,8 +716,9 @@ class TestKeyValuePersister(unittest.TestCase):
         self._assertValuesWereWritten()
 
     def _assert_delimieter_key_exception(self):
-        faulty_kvs = [("a key", "value"), ("key ", "value"), (" key", "value"),
-                      ("multiline\nkey", "value"), ("key", "multiline\nvalue")]
+        faulty_kvs = [(b"a key", b"value"), (b"key ", b"value"),
+                      (b" key", b"value"), (b"multiline\nkey", b"value"),
+                      (b"key", b"multiline\nvalue")]
         for key, val in faulty_kvs:
             setter = lambda: self.keyvalpersister.__setitem__(key, val)
             self.assertRaises(logbook.KeyValuePersister.InsertError, setter)
@@ -749,8 +751,8 @@ class TestKeyValuePersister(unittest.TestCase):
         self._write_keyvals()
 
         # Changing value of the first key
-        first_key = self.keyvals.keys()[0]
-        new_value = "56"
+        first_key = next(iter(self.keyvals.keys()))
+        new_value = b"56"
         self.assertNotEqual(self.keyvalpersister[first_key], new_value)
         self.keyvalpersister[first_key] = new_value
 
@@ -764,7 +766,7 @@ class TestKeyValuePersister(unittest.TestCase):
         """
         self.assertRaises(NotImplementedError,
                           self.keyvalpersister.__delitem__,
-                          self.keyvals.keys()[0])
+                          next(iter(self.keyvals.keys())))
 
     def testFileOutput(self):
         """Making sure we are writing in md5sum format."""
@@ -773,11 +775,12 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister.close()
         self.keyvalpersister = None  # Needed so tearDown doesn't close
 
-        with open(self.keyvalfile) as f:
+        with open(self.keyvalfile, 'rt') as f:
             content = f.read()
+            print(type(content), content)
             actual_lines = content.splitlines()
-            expected_lines = ["{0} {1}".format(k, v)
-                              for k, v in self.keyvals.iteritems()]
+            expected_lines = ["{0} {1}".format(k.decode(), v.decode())
+                              for k, v in self.keyvals.items()]
         self.assertEquals(actual_lines, expected_lines)
 
     def testOpeningNonExistingFile(self):

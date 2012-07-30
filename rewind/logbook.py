@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class KeyValuePersister(collections.MutableMapping):
     """A persisted append-only MutableMapping implementation."""
-    _delimiter = " "
+    _delimiter = b" "
 
     class InsertError(Exception):
         """Raised when trying to insert a malformed key or value."""
@@ -40,7 +40,7 @@ class KeyValuePersister(collections.MutableMapping):
         keyvals = {}
         with open(filename, 'rb') as f:
             for line in f:
-                line = line.strip("\r\n")
+                line = line.strip(b"\r\n")
                 pieces = line.split(KeyValuePersister._delimiter)
                 if len(pieces) >= 2:
                     key = pieces[0]
@@ -92,10 +92,10 @@ class KeyValuePersister(collections.MutableMapping):
         if self._delimiter in key:
             msg = "Key contained delimiter: {0}".format(key)
             raise KeyValuePersister.InsertError(msg)
-        if "\n" in key:
+        if b"\n" in key:
             msg = "Key must not contain any newline. It did: {0}"
             raise KeyValuePersister.InsertError(msg.format(key))
-        if "\n" in val:
+        if b"\n" in val:
             msg = "Value must not contain any newline. It did: {0}"
             raise KeyValuePersister.InsertError(msg.format(val))
         if key in self._keyvals:
@@ -103,18 +103,24 @@ class KeyValuePersister(collections.MutableMapping):
             oldval = self._keyvals[key]
             self._keyvals[key] = val
             try:
-                with open(self._filename, 'wb') as f:
+                with open(self._filename, 'w') as f:
                     # Rewriting the whole file serially. Yes, it's a slow
                     # operation, but hey - it's an ascii file
                     for key, val in self._keyvals.iteritems():
-                        f.write("{0}{1}{2}\n".format(key, self._delimiter, val))
+                        f.write(key)
+                        f.write(self._delimiter)
+                        f.write(val)
+                        f.write('\n')
             except Exception as e:
                 self._keyvals[key] = oldval
                 raise e
             finally:
                 self._open()
         else:
-            self._file.write("{0}{1}{2}\n".format(key, self._delimiter, val))
+            self._file.write(key)
+            self._file.write(self._delimiter)
+            self._file.write(val)
+            self._file.write('\n')
             self._keyvals[key] = val
 
 
