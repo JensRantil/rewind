@@ -369,7 +369,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         """Asserting we identify corrupt `_SQLiteEventStore` files."""
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
-            f.write("Random data %%%!!!??")
+            f.write(b"Random data %%%!!!??")
         self.assertRaises(logbook.LogBookCorruptionError,
                           logbook._SQLiteEventStore,
                           self.tempfile.name)
