@@ -282,11 +282,15 @@ class _SQLiteEventStore(EventStore):
 
     def add_event(self, key, event):
         """See `EventStore.add_event(...)`."""
+        assert isinstance(key, str)
+        assert isinstance(event, bytes)
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
                           (key, event))
 
     def get_events(self, from_=None, to=None):
         """See `EventStore.get_events(...)`."""
+        assert from_ is None or isinstance(from_, str)
+        assert to is None or isinstance(to, str)
         if from_ and not self.key_exists(from_):
             msg = 'from_={0}'.format(from_)
             raise EventStore.EventKeyDoesNotExistError(msg)
@@ -312,6 +316,7 @@ class _SQLiteEventStore(EventStore):
         return [(row[0], row[1]) for row in self.conn.execute(sql, params)]
 
     def _get_eventid(self, uuid):
+        assert isinstance(uuid, str)
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
             cursor.execute('SELECT eventid FROM events WHERE uuid=?', (uuid,))
@@ -320,6 +325,7 @@ class _SQLiteEventStore(EventStore):
 
     def key_exists(self, key):
         """See `EventStore.key_exists(...)`."""
+        assert isinstance(key, str)
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
             cursor.execute('SELECT COUNT(*) FROM events WHERE uuid=?', (key,))
