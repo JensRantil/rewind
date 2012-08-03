@@ -496,7 +496,11 @@ class _LogEventStore(EventStore):
 
 
 class RotatedEventStore(EventStore):
-    """An event store that stores events in rotated files."""
+    """An event store that stores events in rotated files.
+
+    Calls to `EventStore` specific methods are simply proxied to the event
+    store created by the factory specified as an argument to the constructor.
+    """
     def __init__(self, estore_factory, dirpath, prefix):
         # These needs to be specified before calling self._determine_batchno()
         self.dirpath = dirpath
