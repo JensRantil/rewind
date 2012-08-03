@@ -400,7 +400,7 @@ class _LogEventStore(EventStore):
         self._open()
 
     def _open(self):
-        self.f = open(self._path, 'ab')
+        self.f = open(self._path, 'at')
 
     def _close(self):
         if self.f:
@@ -415,14 +415,11 @@ class _LogEventStore(EventStore):
         else:
             raise ValueError("Key must be alphanumeric or a dash (-):"
                              " {0}".format(key))
-        safe_event = base64.encodestring(event).strip()
-        if not all([char.isalnum() or char == '=' for char in safe_event]):
-            raise ValueError("Safe event string must be alphanumeric or '=':"
-                             " {0}".format(safe_event))
+        safe_event = base64.encodestring(event).decode().strip()
         data = "{0}\t{1}\n".format(safe_key, safe_event)
 
         # Important to make a single atomic write here
-        self._hasher.update(data)
+        self._hasher.update(data.encode())
         self.f.write(data)
 
     def _unsafe_get_events(self, from_, to):
@@ -431,15 +428,16 @@ class _LogEventStore(EventStore):
             # Find events from 'from_' (or start if not given, that is)
             if from_:
                 for line in f:
-                    key, eventstr = line.strip().split("\t")
+                    key, eventstr = line.rstrip('\n\r').split("\t")
                     if key == from_:
                         break
 
             # Continue until 'to' (if given, that is)
             found_to = False
             for line in f:
-                key, eventstr = line.strip().split("\t")
-                eventstrs.append((key, base64.decodestring(eventstr)))
+                key, eventstr = line.rstrip('\n\r').split("\t")
+                decodedevstr = base64.decodestring(eventstr.encode())
+                eventstrs.append((key, decodedevstr))
                 if to and to == key:
                     found_to = True
                     break
