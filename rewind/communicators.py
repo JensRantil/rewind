@@ -29,7 +29,7 @@ class EventQuerier(object):
                 from_ = eventid
                 yield (eventid, eventdata)
 
-    def _real_query(self, from_=None, to=None):
+    def _real_query(self, from_, to):
         """Make the actual query for events.
 
         Since the logbook streams events in batches, this method might not
