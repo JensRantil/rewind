@@ -761,6 +761,7 @@ class LogBookRunner(object):
         self.incoming_socket = incoming_socket
         self.query_socket = query_socket
         self.streaming_socket = streaming_socket
+        assert isinstance(exit_message, bytes)
         self.exit_message = exit_message
 
         self.id_generator = IdGenerator(key_exists=lambda key:
@@ -933,7 +934,7 @@ def run(args):
         # exception or similar.
 
         runner = LogBookRunner(eventstore, incoming_socket, query_socket,
-                               streaming_socket, args.exit_message)
+                               streaming_socket, args.exit_message.encode())
         runner.run()
 
     return 0
