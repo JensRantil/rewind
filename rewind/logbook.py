@@ -112,7 +112,7 @@ class KeyValuePersister(collections.MutableMapping):
                 with open(self._filename, 'w') as f:
                     # Rewriting the whole file serially. Yes, it's a slow
                     # operation, but hey - it's an ascii file
-                    for key, val in self._keyvals.iteritems():
+                    for key, val in self._keyvals.items():
                         f.write(key)
                         f.write(self._delimiter)
                         f.write(val)
