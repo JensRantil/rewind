@@ -198,7 +198,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         for fname, checksum in checksums.items():
             hasher = hashlib.md5()
             abspath = os.path.join(dirpath, fname)
-            with open(abspath) as f:
+            with open(abspath, 'rb') as f:
                 logbook._hashfile(f, hasher)
             self.assertEqual(hasher.hexdigest(), checksum)
 
