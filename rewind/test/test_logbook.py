@@ -524,7 +524,7 @@ class TestLogbookReplication(unittest.TestCase):
 
         self.transmitter = self.context.socket(zmq.PUSH)
         self.receiver = self.context.socket(zmq.SUB)
-        self.receiver.setsockopt(zmq.SUBSCRIBE, '')
+        self.receiver.setsockopt(zmq.SUBSCRIBE, b'')
 
         self.transmitter.connect('tcp://127.0.0.1:8090')
         self.receiver.connect('tcp://127.0.0.1:8091')
