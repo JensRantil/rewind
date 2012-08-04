@@ -285,7 +285,7 @@ class _SQLiteEventStore(EventStore):
         assert isinstance(key, str)
         assert isinstance(event, bytes)
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
-                          (key, event))
+                          (key, event.decode('utf-8')))
 
     def get_events(self, from_=None, to=None):
         """See `EventStore.get_events(...)`."""
@@ -313,7 +313,8 @@ class _SQLiteEventStore(EventStore):
             sql = 'SELECT uuid, event FROM events WHERE eventid >= ?'
             params = (fromindex,)
         sql = sql + " ORDER BY eventid"
-        return [(row[0], row[1]) for row in self.conn.execute(sql, params)]
+        return [(row[0], row[1].encode('utf-8'))
+                for row in self.conn.execute(sql, params)]
 
     def _get_eventid(self, uuid):
         assert isinstance(uuid, str)
