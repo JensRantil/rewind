@@ -677,9 +677,9 @@ class TestLogbookQuerying(unittest.TestCase):
 
 class TestKeyValuePersister(unittest.TestCase):
     keyvals = {
-        b'key1': b'val1',
-        b'key2': b'value number two',
-        b'key3': b'val3',
+        'key1': 'val1',
+        'key2': 'value number two',
+        'key3': 'val3',
     }
 
     def setUp(self):
@@ -716,9 +716,9 @@ class TestKeyValuePersister(unittest.TestCase):
         self._assertValuesWereWritten()
 
     def _assert_delimieter_key_exception(self):
-        faulty_kvs = [(b"a key", b"value"), (b"key ", b"value"),
-                      (b" key", b"value"), (b"multiline\nkey", b"value"),
-                      (b"key", b"multiline\nvalue")]
+        faulty_kvs = [("a key", "value"), ("key ", "value"),
+                      (" key", "value"), ("multiline\nkey", "value"),
+                      ("key", "multiline\nvalue")]
         for key, val in faulty_kvs:
             setter = lambda: self.keyvalpersister.__setitem__(key, val)
             self.assertRaises(logbook.KeyValuePersister.InsertError, setter)
@@ -752,7 +752,7 @@ class TestKeyValuePersister(unittest.TestCase):
 
         # Changing value of the first key
         first_key = next(iter(self.keyvals.keys()))
-        new_value = b"56"
+        new_value = "56"
         self.assertNotEqual(self.keyvalpersister[first_key], new_value)
         self.keyvalpersister[first_key] = new_value
 
@@ -775,11 +775,10 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister.close()
         self.keyvalpersister = None  # Needed so tearDown doesn't close
 
-        with open(self.keyvalfile, 'rt') as f:
+        with open(self.keyvalfile, 'r') as f:
             content = f.read()
-            print(type(content), content)
             actual_lines = content.splitlines()
-            expected_lines = ["{0} {1}".format(k.decode(), v.decode())
+            expected_lines = ["{0} {1}".format(k, v)
                               for k, v in self.keyvals.items()]
         self.assertEquals(actual_lines, expected_lines)
 

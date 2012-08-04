@@ -21,13 +21,14 @@ logger = logging.getLogger(__name__)
 
 class KeyValuePersister(collections.MutableMapping):
     """A persisted append-only MutableMapping implementation."""
-    _delimiter = b" "
+    _delimiter = " "
 
     class InsertError(Exception):
         """Raised when trying to insert a malformed key or value."""
         pass
 
     def __init__(self, filename):
+        assert isinstance(filename, str)
         self._filename = filename
         self._open()
 
@@ -37,10 +38,11 @@ class KeyValuePersister(collections.MutableMapping):
 
         Raises IOError if the file does not exit etcetera.
         """
+        assert isinstance(filename, str)
         keyvals = {}
-        with open(filename, 'rb') as f:
+        with open(filename, 'r') as f:
             for line in f:
-                line = line.strip(b"\r\n")
+                line = line.strip("\r\n")
                 pieces = line.split(KeyValuePersister._delimiter)
                 if len(pieces) >= 2:
                     key = pieces[0]
@@ -55,6 +57,7 @@ class KeyValuePersister(collections.MutableMapping):
         returns -- a dictionary with key/values, or empty dictionary if the
                    file does not exist.
         """
+        assert isinstance(filename, str)
         if os.path.exists(filename):
             return KeyValuePersister._actually_populate_keyvals(filename)
         else:
@@ -63,7 +66,7 @@ class KeyValuePersister(collections.MutableMapping):
     def _open(self):
         keyvals = self._read_keyvals(self._filename)
 
-        rawfile = open(self._filename, 'ab')
+        rawfile = open(self._filename, 'a')
 
         self._keyvals = keyvals
         self._file = rawfile
@@ -80,6 +83,7 @@ class KeyValuePersister(collections.MutableMapping):
         raise NotImplementedError('KeyValuePersister is append only.')
 
     def __getitem__(self, key):
+        assert isinstance(key, str)
         return self._keyvals[key]
 
     def __iter__(self):
@@ -89,13 +93,15 @@ class KeyValuePersister(collections.MutableMapping):
         return len(self._keyvals)
 
     def __setitem__(self, key, val):
+        assert isinstance(key, str)
+        assert isinstance(val, str)
         if self._delimiter in key:
             msg = "Key contained delimiter: {0}".format(key)
             raise KeyValuePersister.InsertError(msg)
-        if b"\n" in key:
+        if "\n" in key:
             msg = "Key must not contain any newline. It did: {0}"
             raise KeyValuePersister.InsertError(msg.format(key))
-        if b"\n" in val:
+        if "\n" in val:
             msg = "Value must not contain any newline. It did: {0}"
             raise KeyValuePersister.InsertError(msg.format(val))
         if key in self._keyvals:
