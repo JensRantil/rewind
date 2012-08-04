@@ -774,7 +774,9 @@ class LogBookRunner(object):
         assert not newid.startswith("ERROR"), \
                 "Generated ID must not be part of req/rep vocabulary."
 
+        # Important this is done before forwarding to the streaming socket
         self.eventstore.add_event(newid, eventstr)
+
         self.streaming_socket.send(newid, zmq.SNDMORE)
         self.streaming_socket.send(eventstr)
 
