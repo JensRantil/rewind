@@ -17,6 +17,8 @@ class EventQuerier(object):
 
     def query(self, from_=None, to=None):
         """Make a query of events."""
+        assert from_ is None or isinstance(from_, str)
+        assert to is None or isinstance(to, str)
         first_msg = True
         done = False
         while not done:
@@ -35,23 +37,25 @@ class EventQuerier(object):
         Since the logbook streams events in batches, this method might not
         receive all requested events.
         """
-        self.socket.send('QUERY', zmq.SNDMORE)
-        self.socket.send(from_ if from_ else '', zmq.SNDMORE)
-        self.socket.send(to if to else '')
+        assert from_ is None or isinstance(from_, str)
+        assert to is None or isinstance(to, str)
+        self.socket.send(b'QUERY', zmq.SNDMORE)
+        self.socket.send(from_.encode() if from_ else b'', zmq.SNDMORE)
+        self.socket.send(to.encode() if to else b'')
 
         more = True
         done = False
         events = []
         while more:
             data = self.socket.recv()
-            if data == "END":
+            if data == b"END":
                 assert not self.socket.getsockopt(zmq.RCVMORE)
                 done = True
-            elif data.startswith("ERROR"):
+            elif data.startswith(b"ERROR"):
                 assert not self.socket.getsockopt(zmq.RCVMORE)
                 raise self.QueryException("Could not query: {0}".format(data))
             else:
-                eventid = data
+                eventid = data.decode()
                 assert self.socket.getsockopt(zmq.RCVMORE)
                 eventdata = self.socket.recv()
 

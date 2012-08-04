@@ -543,7 +543,7 @@ class TestLogbookReplication(unittest.TestCase):
 
         self.transmitter.send(eventstring)
 
-        received_id = self.receiver.recv()
+        received_id = self.receiver.recv().decode()
         self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
         received_string = self.receiver.recv()
         self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
@@ -569,7 +569,7 @@ class TestLogbookReplication(unittest.TestCase):
         # Receiving and asserting correct messages
         eventids = []
         for msg in messages:
-            received_id = self.receiver.recv()
+            received_id = self.receiver.recv().decode()
             self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
             received_string = self.receiver.recv()
             self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))

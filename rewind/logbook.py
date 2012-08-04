@@ -811,7 +811,7 @@ class LogBookRunner(object):
         # Important this is done before forwarding to the streaming socket
         self.eventstore.add_event(newid, eventstr)
 
-        self.streaming_socket.send(newid, zmq.SNDMORE)
+        self.streaming_socket.send(newid.encode(), zmq.SNDMORE)
         self.streaming_socket.send(eventstr)
 
         return True
@@ -819,11 +819,11 @@ class LogBookRunner(object):
     def _handle_query(self):
         """Handle an event query."""
         requesttype = self.query_socket.recv()
-        if requesttype == "QUERY":
+        if requesttype == b"QUERY":
             assert self.query_socket.getsockopt(zmq.RCVMORE)
-            fro = self.query_socket.recv()
+            fro = self.query_socket.recv().decode()
             assert self.query_socket.getsockopt(zmq.RCVMORE)
-            to = self.query_socket.recv()
+            to = self.query_socket.recv().decode()
             assert not self.query_socket.getsockopt(zmq.RCVMORE)
 
             logging.debug("Incoming query: (from, to)=(%s, %s)", fro, to)
@@ -834,7 +834,7 @@ class LogBookRunner(object):
             except EventStore.EventKeyDoesNotExistError as e:
                 logger.exception("A client requested a key that does not"
                                  " exist:")
-                self.query_socket.send("ERROR Key did not exist")
+                self.query_socket.send(b"ERROR Key did not exist")
                 return True
 
             # Since we are using ZeroMQ enveloping we want to cap the
@@ -847,17 +847,17 @@ class LogBookRunner(object):
             if len(events) == MAX_ELMNTS_PER_REQ + 1:
                 # There are more elements, but we are capping the result
                 for eventid, eventdata in events[:-1]:
-                    self.query_socket.send(eventid, zmq.SNDMORE)
+                    self.query_socket.send(eventid.encode(), zmq.SNDMORE)
                     self.query_socket.send(eventdata, zmq.SNDMORE)
                 lasteventid, lasteventdata = events[-1]
-                self.query_socket.send(lasteventid, zmq.SNDMORE)
+                self.query_socket.send(lasteventid.encode(), zmq.SNDMORE)
                 self.query_socket.send(lasteventdata)
             else:
                 # Sending all events. Ie., we are not capping
                 for eventid, eventdata in events:
-                    self.query_socket.send(eventid, zmq.SNDMORE)
+                    self.query_socket.send(eventid.encode(), zmq.SNDMORE)
                     self.query_socket.send(eventdata, zmq.SNDMORE)
-                self.query_socket.send("END")
+                self.query_socket.send(b"END")
         else:
             logging.warn("Could not identify request type: %s", requesttype)
             self.query_socket.send("ERROR Unknown request type")
