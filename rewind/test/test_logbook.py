@@ -220,22 +220,22 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
 
         mstore1 = logbook.InMemoryEventStore()
         mstore1.close = mock.MagicMock()  # Needed for assertions
-        keys1 = [bytes(i) for i in range(N)]
-        vals1 = [bytes(i + 30) for i in range(N)]
+        keys1 = ["{0}".format(i) for i in range(N)]
+        vals1 = ["{0}".format(i + 30).encode() for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
         mstore2 = logbook.InMemoryEventStore()
         mstore2.close = mock.MagicMock()  # Needed for assertions
-        keys2 = [bytes(i + N) for i in range(N)]
-        vals2 = [bytes(i + 30 + N) for i in range(N)]
+        keys2 = ["{0}".format(i + N) for i in range(N)]
+        vals2 = ["{0}".format(i + 30 + N).encode() for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 
         mstore3 = logbook.InMemoryEventStore()
         mstore3.close = mock.MagicMock()  # Needed for assertions
         keys3 = ['one', 'two', 'three']
-        vals3 = ['four', 'five', 'six']
+        vals3 = [b'four', b'five', b'six']
         for key, val in zip(keys3, vals3):
             mstore3.add_event(key, val)
 
@@ -293,7 +293,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         self.store.rotate()
 
         self.assertFalse(self.store.key_exists(b'mykey'))
-        self.store.add_event('mykey', 'myvalue')
+        self.store.add_event(b'mykey', 'myvalue')
         self.assertTrue(self.store.key_exists(b'mykey'),
                         "The event was expected to have been written.")
         self.assertTrue(self.mstore4.key_exists(b'mykey'),
@@ -559,7 +559,7 @@ class TestLogbookReplication(unittest.TestCase):
         NMESSAGES = 200
         messages = []
         for id in range(NMESSAGES):
-            eventstring = b"THIS IS EVENT NUMBER {0}".format(id)
+            eventstring = "THIS IS EVENT NUMBER {0}".format(id).encode()
             messages.append(eventstring)
 
         # Sending
@@ -614,17 +614,17 @@ class TestLogbookQuerying(unittest.TestCase):
         # Could be removed if this test works as expected
         transmitter.setsockopt(zmq.LINGER, 1000)
 
-        ids = [unicode(uuid.uuid1()) for i in range(200)]
+        ids = [uuid.uuid1().hex for i in range(200)]
         self.assertEqual(len(ids), len(set(ids)), 'There were duplicate IDs.'
                          ' Maybe the UUID1 algorithm is flawed?')
-        users = [unicode(uuid.uuid1()) for i in range(30)]
+        users = [uuid.uuid1().hex for i in range(30)]
         self.assertEqual(len(users), len(set(users)),
                          'There were duplicate users.'
                          ' Maybe the UUID1 algorithm is flawed?')
 
         self.sent = []
         for id in ids:
-            eventstr = b"Event with id '{0}'".format(id)
+            eventstr = "Event with id '{0}'".format(id).encode()
             transmitter.send(eventstr)
             self.sent.append(eventstr)
         transmitter.close()
