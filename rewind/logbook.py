@@ -1,3 +1,4 @@
+from __future__ import print_function
 import argparse
 import base64
 import collections
@@ -27,6 +28,7 @@ class KeyValuePersister(collections.MutableMapping):
         pass
 
     def __init__(self, filename):
+        assert isinstance(filename, str)
         self._filename = filename
         self._open()
 
@@ -36,8 +38,9 @@ class KeyValuePersister(collections.MutableMapping):
 
         Raises IOError if the file does not exit etcetera.
         """
+        assert isinstance(filename, str)
         keyvals = {}
-        with open(filename, 'rb') as f:
+        with open(filename, 'r') as f:
             for line in f:
                 line = line.strip("\r\n")
                 pieces = line.split(KeyValuePersister._delimiter)
@@ -50,10 +53,11 @@ class KeyValuePersister(collections.MutableMapping):
     @staticmethod
     def _read_keyvals(filename):
         """Read the key/values if the file exists.
-        
-        returns -- a dictionary with key/values, or empty dictionary if the file
-                   does not exist.
+
+        returns -- a dictionary with key/values, or empty dictionary if the
+                   file does not exist.
         """
+        assert isinstance(filename, str)
         if os.path.exists(filename):
             return KeyValuePersister._actually_populate_keyvals(filename)
         else:
@@ -62,7 +66,7 @@ class KeyValuePersister(collections.MutableMapping):
     def _open(self):
         keyvals = self._read_keyvals(self._filename)
 
-        rawfile = open(self._filename, 'ab')
+        rawfile = open(self._filename, 'a')
 
         self._keyvals = keyvals
         self._file = rawfile
@@ -79,6 +83,7 @@ class KeyValuePersister(collections.MutableMapping):
         raise NotImplementedError('KeyValuePersister is append only.')
 
     def __getitem__(self, key):
+        assert isinstance(key, str)
         return self._keyvals[key]
 
     def __iter__(self):
@@ -88,8 +93,10 @@ class KeyValuePersister(collections.MutableMapping):
         return len(self._keyvals)
 
     def __setitem__(self, key, val):
+        assert isinstance(key, str)
+        assert isinstance(val, str)
         if self._delimiter in key:
-            msg = "Key contained delimiter: %s" % key
+            msg = "Key contained delimiter: {0}".format(key)
             raise KeyValuePersister.InsertError(msg)
         if "\n" in key:
             msg = "Key must not contain any newline. It did: {0}"
@@ -98,17 +105,29 @@ class KeyValuePersister(collections.MutableMapping):
             msg = "Value must not contain any newline. It did: {0}"
             raise KeyValuePersister.InsertError(msg.format(val))
         if key in self._keyvals:
-            self._keyvals[key] = val
             self.close()
-            # Rewriting the whole file serially. Yes, it's a slow operation, but
-            # hey - it's an ascii file
-            with open(self._filename, 'wb') as f:
-                for key, val in self._keyvals.iteritems():
-                    f.write("%s%s%s\n" % (key, self._delimiter, val))
-            self._open()
-        else:
+            oldval = self._keyvals[key]
             self._keyvals[key] = val
-            self._file.write("%s%s%s\n" % (key, self._delimiter, val))
+            try:
+                with open(self._filename, 'w') as f:
+                    # Rewriting the whole file serially. Yes, it's a slow
+                    # operation, but hey - it's an ascii file
+                    for key, val in self._keyvals.items():
+                        f.write(key)
+                        f.write(self._delimiter)
+                        f.write(val)
+                        f.write('\n')
+            except Exception as e:
+                self._keyvals[key] = oldval
+                raise e
+            finally:
+                self._open()
+        else:
+            self._file.write(key)
+            self._file.write(self._delimiter)
+            self._file.write(val)
+            self._file.write('\n')
+            self._keyvals[key] = val
 
 
 class LogBookKeyError(KeyError):
@@ -131,7 +150,7 @@ class LogBookCorruptionError(Exception):
 
 class EventStore(object):
     """Stores events and keeps track of their order.
-    
+
     This class is here mostly for documentation. It shows which methods in
     general needs to be implemented by its supclasses.
     """
@@ -150,7 +169,7 @@ class EventStore(object):
 
     def add_event(self, key, event):
         """Adds an event with key to the store.
-        
+
         Parameters:
         key   -- the key used to reference the event. The key must be a string.
         event -- the serialized event. The event must be a string or data.
@@ -196,7 +215,7 @@ class InMemoryEventStore(EventStore):
         """See `EventStore.add_event(...)`."""
         if key in self.keys or key in self.events:
             raise EventStore.EventKeyAlreadyExistError(
-                "The key already existed: %s" % key)
+                "The key already existed: {0}".format(key))
         self.keys.append(key)
         # Important no exceptions happen between these lines!
         self.events[key] = event
@@ -205,22 +224,23 @@ class InMemoryEventStore(EventStore):
         """See `EventStore.add_get_events(...)`."""
         if from_ and (from_ not in self.keys or from_ not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
-                "Could not find the from_ key: %s" % from_)
+                "Could not find the from_ key: {0}".format(from_))
         if to and (to not in self.keys or to not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
-                "Could not find the from_ key: %s" % to)
-        
-        # +1 here because we have already seen the event we are asking for
-        fromindex = self.keys.index(from_)+1 if from_ else 0
+                "Could not find the from_ key: {0}".format(to))
 
-        toindex = self.keys.index(to)+1 if to else len(self.events)
+        # +1 here because we have already seen the event we are asking for
+        fromindex = self.keys.index(from_) + 1 if from_ else 0
+
+        toindex = self.keys.index(to) + 1 if to else len(self.events)
         if fromindex > toindex:
-            raise LogBookEventOrderError("'From' index came after 'To'. \
-                                         Keys: (%s, %s) \
-                                         Indices: (%s, %s)" % (from_, to,
-                                                               fromindex,
-                                                               toindex))
-        return ((key, self.events[key]) for key in self.keys[fromindex:toindex])
+            msg = ("'From' index came after 'To'."
+                   " Keys: ({0}, {1})"
+                   " Indices: ({2}, {3})").format(from_, to, fromindex,
+                                                  toindex)
+            raise LogBookEventOrderError(msg)
+        return ((key, self.events[key])
+                for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
         """See `EventStore.key_exists(...)`."""
@@ -233,9 +253,9 @@ class _SQLiteEventStore(EventStore):
         fname = os.path.basename(path)
         checksum_persister = _get_checksum_persister(path)
         hasher = _initialize_hasher(path)
-        if fname in checksum_persister and \
-           checksum_persister[fname] != hasher.hexdigest():
-            msg = "The file '%s' had wrong md5 checksum." % path
+        if (fname in checksum_persister and
+                checksum_persister[fname] != hasher.hexdigest()):
+            msg = "The file '{0}' had wrong md5 checksum.".format(path)
             raise LogBookCorruptionError(msg)
 
         # isolation_level=None => autocommit mode
@@ -247,48 +267,57 @@ class _SQLiteEventStore(EventStore):
                 uuid TEXT UNIQUE,
                 event BLOB
             );
-        ''');
+        ''')
 
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
             cursor.execute('PRAGMA integrity_check(1)')
             res = cursor.fetchone()
             status = res[0]
-            assert status=='ok', \
-                    "Integrity check failed when opening SQLite." \
-                    " Actual status: {0}".format(status)
+            assert status == 'ok', \
+                ("Integrity check failed when opening SQLite."
+                 " Actual status: {0}".format(status))
 
         self._path = path
 
     def add_event(self, key, event):
         """See `EventStore.add_event(...)`."""
+        assert isinstance(key, str)
+        assert isinstance(event, bytes)
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
-                     (key, event))
+                          (key, event.decode('utf-8')))
 
     def get_events(self, from_=None, to=None):
         """See `EventStore.get_events(...)`."""
+        assert from_ is None or isinstance(from_, str)
+        assert to is None or isinstance(to, str)
         if from_ and not self.key_exists(from_):
-            raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
+            msg = 'from_={0}'.format(from_)
+            raise EventStore.EventKeyDoesNotExistError(msg)
         if to and not self.key_exists(to):
-            raise EventStore.EventKeyDoesNotExistError('to=%s' % to)
+            msg = 'to={0}'.format(to)
+            raise EventStore.EventKeyDoesNotExistError(msg)
 
         # +1 below because we have already seen the event
-        fromindex = self._get_eventid(from_)+1 if from_ else 0
+        fromindex = self._get_eventid(from_) + 1 if from_ else 0
         toindex = self._get_eventid(to) if to else None
         if from_ and to and fromindex > toindex:
             raise LogBookEventOrderError("'to' happened cronologically before"
                                          " 'from_'.")
 
         if toindex:
-            sql = 'SELECT uuid, event FROM events WHERE eventid BETWEEN ? AND ?'
+            sql = ('SELECT uuid, event FROM events '
+                   'WHERE eventid BETWEEN ? AND ?')
             params = (fromindex, toindex)
         else:
             sql = 'SELECT uuid, event FROM events WHERE eventid >= ?'
             params = (fromindex,)
         sql = sql + " ORDER BY eventid"
-        return [(row[0], row[1]) for row in self.conn.execute(sql, params)]
+        return [(row[0], row[1].encode('utf-8'))
+                for row in self.conn.execute(sql, params)]
 
     def _get_eventid(self, uuid):
+        assert isinstance(uuid, str)
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
             cursor.execute('SELECT eventid FROM events WHERE uuid=?', (uuid,))
@@ -297,6 +326,7 @@ class _SQLiteEventStore(EventStore):
 
     def key_exists(self, key):
         """See `EventStore.key_exists(...)`."""
+        assert isinstance(key, str)
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
             cursor.execute('SELECT COUNT(*) FROM events WHERE uuid=?', (key,))
@@ -307,8 +337,8 @@ class _SQLiteEventStore(EventStore):
         elif count == 1:
             return True
         else:
-            raise RuntimeException('There multiple event instances of: %s' %
-                                   key)
+            msg = 'There multiple event instances of: {0}'.format(key)
+            raise RuntimeException(msg)
 
     def count(self):
         """Return the number of events in the db."""
@@ -320,7 +350,7 @@ class _SQLiteEventStore(EventStore):
 
     def close(self):
         """Close the event store.
-        
+
         Important to close to not have any file descriptor leakages.
         """
         if self.conn:
@@ -344,7 +374,7 @@ def _hashfile(afile, hasher, blocksize=65536):
 def _initialize_hasher(path):
     hasher = hashlib.md5()
     if os.path.exists(path):
-        with open(path) as f:
+        with open(path, 'rb') as f:
             _hashfile(f, hasher)
     return hasher
 
@@ -362,16 +392,16 @@ class _LogEventStore(EventStore):
 
         fname = os.path.basename(path)
         checksum_persister = _get_checksum_persister(path)
-        if fname in checksum_persister and \
-           checksum_persister[fname] != self._hasher.hexdigest():
-            msg = "The file '%s' was had wrong md5." % path
+        if (fname in checksum_persister and
+                checksum_persister[fname] != self._hasher.hexdigest()):
+            msg = "The file '{0}' was had wrong md5.".format(path)
             raise LogBookCorruptionError(msg)
-        
+
         self._path = path
         self._open()
 
     def _open(self):
-        self.f = open(self._path, 'ab')
+        self.f = open(self._path, 'at')
 
     def _close(self):
         if self.f:
@@ -379,19 +409,18 @@ class _LogEventStore(EventStore):
             self.f = None
 
     def add_event(self, key, event):
-        if all([char.isalnum() or char=='-' for char in key]):
+        assert isinstance(key, str)
+        assert isinstance(event, bytes)
+        if all([char.isalnum() or char == '-' for char in key]):
             safe_key = key
         else:
             raise ValueError("Key must be alphanumeric or a dash (-):"
                              " {0}".format(key))
-        safe_event = base64.encodestring(event).strip()
-        if not all([char.isalnum() or char=='=' for char in safe_event]):
-            raise ValueError("Safe event string must be alphanumeric or '=':"
-                             " {0}".format(safe_event))
+        safe_event = base64.encodestring(event).decode().strip()
         data = "{0}\t{1}\n".format(safe_key, safe_event)
-        
+
         # Important to make a single atomic write here
-        self._hasher.update(data)
+        self._hasher.update(data.encode())
         self.f.write(data)
 
     def _unsafe_get_events(self, from_, to):
@@ -400,20 +429,22 @@ class _LogEventStore(EventStore):
             # Find events from 'from_' (or start if not given, that is)
             if from_:
                 for line in f:
-                    key, eventstr = line.strip().split("\t")
+                    key, eventstr = line.rstrip('\n\r').split("\t")
                     if key == from_:
                         break
 
             # Continue until 'to' (if given, that is)
             found_to = False
             for line in f:
-                key, eventstr = line.strip().split("\t")
-                eventstrs.append((key, base64.decodestring(eventstr)))
+                key, eventstr = line.rstrip('\n\r').split("\t")
+                decodedevstr = base64.decodestring(eventstr.encode())
+                eventstrs.append((key, decodedevstr))
                 if to and to == key:
                     found_to = True
                     break
             if to and not found_to:
-                raise EventStore.EventKeyDoesNotExistError('from_=%s' % from_)
+                msg = 'from_={0}'.format(from_)
+                raise EventStore.EventKeyDoesNotExistError(msg)
 
         return eventstrs
 
@@ -423,6 +454,8 @@ class _LogEventStore(EventStore):
         Does never throw LogBookEventOrderError because it is hard to detect
         from an append-only file.
         """
+        assert from_ is None or isinstance(from_, str)
+        assert to is None or isinstance(to, str)
         self._close()
         try:
             return self._unsafe_get_events(from_=from_, to=to)
@@ -444,6 +477,7 @@ class _LogEventStore(EventStore):
 
         Makes a linear search and is very slow.
         """
+        assert isinstance(key, str)
         self._close()
         try:
             return self._unsafe_key_exists(key)
@@ -461,7 +495,11 @@ class _LogEventStore(EventStore):
 
 
 class RotatedEventStore(EventStore):
-    """An event store that stores events in rotated files."""
+    """An event store that stores events in rotated files.
+
+    Calls to `EventStore` specific methods are simply proxied to the event
+    store created by the factory specified as an argument to the constructor.
+    """
     def __init__(self, estore_factory, dirpath, prefix):
         # These needs to be specified before calling self._determine_batchno()
         self.dirpath = dirpath
@@ -489,9 +527,9 @@ class RotatedEventStore(EventStore):
                  if fname not in ignored_files]
 
         identified_files = [fname for fname in files
-                            if fname.startswith(prefix+'.')]
+                            if fname.startswith(prefix + '.')]
         not_identified_files = [fname for fname in files
-                                if not fname.startswith(prefix+'.')]
+                                if not fname.startswith(prefix + '.')]
         if not_identified_files:
             self.logger.warn("The following files could not be identified"
                              " (lacking prefix '%s'):", prefix)
@@ -549,7 +587,7 @@ class RotatedEventStore(EventStore):
             # Reusing already opened DB if possible
             return self.batchno
         else:
-            for batchno in range(self.batchno-1, -1, -1):
+            for batchno in range(self.batchno - 1, -1, -1):
                 # Iterating backwards here because we are more likely to find
                 # the event in an later archive, than earlier.
                 db = self._open_event_store(batchno)
@@ -563,7 +601,7 @@ class RotatedEventStore(EventStore):
 
         It also queries older event archives until it finds the event UUIDs
         necessary.
-        
+
         See `EventStore.add_event(...)` for details.
         """
         if from_:
@@ -579,20 +617,21 @@ class RotatedEventStore(EventStore):
         else:
             tobatchno = self.batchno
 
-        batchno_range = range(frombatchno, tobatchno+1)
+        batchno_range = range(frombatchno, tobatchno + 1)
         nbatches = len(batchno_range)
-        if nbatches==1:
+        if nbatches == 1:
             event_ranges = [(from_, to)]
         else:
             event_ranges = itertools.chain([(from_, None)],
-                                           itertools.repeat((None,None),
-                                                            nbatches-2),
+                                           itertools.repeat((None, None),
+                                                            nbatches - 2),
                                            [(None, to)])
         for batchno, (from_in_batch, to_in_batch) in zip(batchno_range,
                                                          event_ranges):
             estore = self._open_event_store(batchno)
             with contextlib.closing(estore):
-                for eventtuple in estore.get_events(from_in_batch, to_in_batch):
+                for eventtuple in estore.get_events(from_in_batch,
+                                                    to_in_batch):
                     yield eventtuple
 
     def key_exists(self, key):
@@ -607,21 +646,21 @@ class RotatedEventStore(EventStore):
 
 class SyncedRotationEventStores(EventStore):
     """Wraps multiple `RotatedEventStore` event stores.
-    
-    Rotation is done at the same time for all event stores to make sure they are
-    kept in sync.
+
+    Rotation is done at the same time for all event stores to make sure they
+    are kept in sync.
     """
     def __init__(self, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
-        
+
         Parameters:
         events_per_batch -- number of events stored in a batch before rotating
                             the files. Defaults to 25000. That number is
                             arbitrary and should probably be configures so that
                             files do not grow out of proportion.
         """
-        assert type(events_per_batch) is types.IntType, \
-                "Events per batch must be integer."
+        assert isinstance(events_per_batch, int), \
+            "Events per batch must be integer."
         assert events_per_batch > 0, "Events per batch must be positive"
         self.events_per_batch = events_per_batch
         self.count = 0
@@ -630,7 +669,7 @@ class SyncedRotationEventStores(EventStore):
     def add_rotated_store(self, rotated_store):
         """Add a `RotatedEventStore` that shall be rotated with the others."""
         assert self.count == 0, \
-                "Must not have written before adding additional estores"
+            "Must not have written before adding additional estores"
         self.stores.append(rotated_store)
 
     def _rotate_files_if_needed(self):
@@ -661,7 +700,7 @@ class SyncedRotationEventStores(EventStore):
             # This check might actually also be done further up in the chain
             # (read: _SQLiteEventStore). Could potentially be removed if it
             # requires a lot of processor cycles.
-            msg = "The key already existed: %s" % key
+            msg = "The key already existed: {0}".format(key)
             raise EventStore.EventKeyAlreadyExistError(msg)
 
         self._rotate_files_if_needed()
@@ -683,7 +722,7 @@ class SyncedRotationEventStores(EventStore):
 
     def get_events(self, from_=None, to=None):
         """Query events.
-        
+
         The events are queried from the event store that was added first using
         `add_rotated_store(...)`.
 
@@ -722,6 +761,7 @@ class LogBookRunner(object):
         self.incoming_socket = incoming_socket
         self.query_socket = query_socket
         self.streaming_socket = streaming_socket
+        assert isinstance(exit_message, bytes)
         self.exit_message = exit_message
 
         self.id_generator = IdGenerator(key_exists=lambda key:
@@ -746,30 +786,32 @@ class LogBookRunner(object):
         """
         socks = dict(self.poller.poll())
 
-        if self.incoming_socket in socks \
-           and socks[self.incoming_socket]==zmq.POLLIN:
+        if (self.incoming_socket in socks and
+                socks[self.incoming_socket] == zmq.POLLIN):
             return self._handle_incoming_event()
-        elif self.query_socket in socks \
-                and socks[self.query_socket]==zmq.POLLIN:
+        elif (self.query_socket in socks
+              and socks[self.query_socket] == zmq.POLLIN):
             return self._handle_query()
 
     def _handle_incoming_event(self):
         """Handle an incoming event."""
         eventstr = self.incoming_socket.recv()
 
-        if self.exit_message and eventstr==self.exit_message:
+        if self.exit_message and eventstr == self.exit_message:
             return False
 
         newid = self.id_generator.generate()
-        
+
         # Make sure newid is not part of our request vocabulary
         assert newid != "QUERY", \
-                "Generated ID must not be part of req/rep vocabulary."
+            "Generated ID must not be part of req/rep vocabulary."
         assert not newid.startswith("ERROR"), \
-                "Generated ID must not be part of req/rep vocabulary."
+            "Generated ID must not be part of req/rep vocabulary."
 
+        # Important this is done before forwarding to the streaming socket
         self.eventstore.add_event(newid, eventstr)
-        self.streaming_socket.send(newid, zmq.SNDMORE)
+
+        self.streaming_socket.send(newid.encode(), zmq.SNDMORE)
         self.streaming_socket.send(eventstr)
 
         return True
@@ -777,14 +819,14 @@ class LogBookRunner(object):
     def _handle_query(self):
         """Handle an event query."""
         requesttype = self.query_socket.recv()
-        if requesttype == "QUERY":
+        if requesttype == b"QUERY":
             assert self.query_socket.getsockopt(zmq.RCVMORE)
-            fro = self.query_socket.recv()
+            fro = self.query_socket.recv().decode()
             assert self.query_socket.getsockopt(zmq.RCVMORE)
-            to = self.query_socket.recv()
+            to = self.query_socket.recv().decode()
             assert not self.query_socket.getsockopt(zmq.RCVMORE)
 
-            logging.debug("Incoming query: (from, to)=(%s, %s)" % (fro, to))
+            logging.debug("Incoming query: (from, to)=(%s, %s)", fro, to)
 
             try:
                 events = self.eventstore.get_events(fro if fro else None,
@@ -792,7 +834,7 @@ class LogBookRunner(object):
             except EventStore.EventKeyDoesNotExistError as e:
                 logger.exception("A client requested a key that does not"
                                  " exist:")
-                self.query_socket.send("ERROR Key did not exist")
+                self.query_socket.send(b"ERROR Key did not exist")
                 return True
 
             # Since we are using ZeroMQ enveloping we want to cap the
@@ -800,22 +842,22 @@ class LogBookRunner(object):
             # Otherwise we might run out of memory for a lot of events.
             MAX_ELMNTS_PER_REQ = 100
 
-            events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ+1)
+            events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ + 1)
             events = list(events)
-            if len(events)==MAX_ELMNTS_PER_REQ+1:
+            if len(events) == MAX_ELMNTS_PER_REQ + 1:
                 # There are more elements, but we are capping the result
                 for eventid, eventdata in events[:-1]:
-                    self.query_socket.send(eventid, zmq.SNDMORE)
+                    self.query_socket.send(eventid.encode(), zmq.SNDMORE)
                     self.query_socket.send(eventdata, zmq.SNDMORE)
                 lasteventid, lasteventdata = events[-1]
-                self.query_socket.send(lasteventid, zmq.SNDMORE)
+                self.query_socket.send(lasteventid.encode(), zmq.SNDMORE)
                 self.query_socket.send(lasteventdata)
             else:
                 # Sending all events. Ie., we are not capping
                 for eventid, eventdata in events:
-                    self.query_socket.send(eventid, zmq.SNDMORE)
+                    self.query_socket.send(eventid.encode(), zmq.SNDMORE)
                     self.query_socket.send(eventdata, zmq.SNDMORE)
-                self.query_socket.send("END")
+                self.query_socket.send(b"END")
         else:
             logging.warn("Could not identify request type: %s", requesttype)
             self.query_socket.send("ERROR Unknown request type")
@@ -834,7 +876,8 @@ def zmq_context_context(*args):
 
 
 @contextlib.contextmanager
-def zmq_socket_context(context, socket_type, bind_endpoints, connect_endpoints):
+def zmq_socket_context(context, socket_type, bind_endpoints,
+                       connect_endpoints):
     """A ZeroMQ socket context that both constructs a socket and closes it."""
     socket = context.socket(socket_type)
     try:
@@ -878,20 +921,20 @@ def run(args):
     with zmq_context_context(3) as context, \
             zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
                                args.incoming_connect_endpoints) \
-                as incoming_socket, \
+            as incoming_socket, \
             zmq_socket_context(context, zmq.REP, args.query_bind_endpoints,
                                args.query_connect_endpoints) \
-                as query_socket, \
+            as query_socket, \
             zmq_socket_context(context, zmq.PUB, args.streaming_bind_endpoints,
                                args.streaming_connect_endpoints) \
-                as streaming_socket:
+            as streaming_socket:
         # Executing the program in the context of ZeroMQ context as well as
         # ZeroMQ sockets. Using with here to make sure are correctly closing
-        # things in the correct order, particularly also if we have an exception
-        # or similar.
+        # things in the correct order, particularly also if we have an
+        # exception or similar.
 
         runner = LogBookRunner(eventstore, incoming_socket, query_socket,
-                               streaming_socket, args.exit_message)
+                               streaming_socket, args.exit_message.encode())
         runner.run()
 
     return 0
@@ -952,23 +995,24 @@ def main(argv=None):
                               dest='streaming_bind_endpoints')
     stream_group.add_argument('--streaming-connect-endpoint',
                               metavar='ZEROMQ-ENDPOINT', default=[],
-                              help='the connect address for streaming of events',
+                              help=('the connect address for streaming of '
+                                    'events'),
                               action='append',
                               dest='streaming_connect_endpoints')
 
     args = argv if argv is not None else sys.argv[1:]
     args = parser.parse_args(args)
 
-    if not args.incoming_bind_endpoints \
-       and not args.incoming_connect_endpoints \
-       and not args.query_bind_endpoints \
-       and not args.query_connect_endpoints:
-        errmsg = "You must either specify an incoming or query endpoint.\n" \
-                "(there's no use in simply having a streaming endpoint)"
+    if (not args.incoming_bind_endpoints and
+            not args.incoming_connect_endpoints and
+            not args.query_bind_endpoints and
+            not args.query_connect_endpoints):
+        errmsg = ("You must either specify an incoming or query endpoint.\n"
+                  "(there's no use in simply having a streaming endpoint)")
         if exit:
             parser.error(errmsg)
         else:
-            print errmsg
+            print(errmsg)
             return 2
 
     exitcode = run(args)

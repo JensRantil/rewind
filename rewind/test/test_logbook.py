@@ -1,3 +1,4 @@
+from __future__ import print_function
 import contextlib
 import itertools
 import random
@@ -37,10 +38,10 @@ class _TestEventStore:
 
         # Important to print this (for test reproducability) since N is
         # random.
-        print "Populating with {0} events...".format(N)
-        self.keys = [str(i) for i in range(N)]
-        self.vals = [str(i+30) for i in range(N)]
-        self.items = zip(self.keys, self.vals)
+        print("Populating with {0} events...".format(N))
+        self.keys = ["{0}".format(i) for i in range(N)]
+        self.vals = ["{0}".format(i + 30).encode() for i in range(N)]
+        self.items = list(zip(self.keys, self.vals))
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
@@ -75,12 +76,14 @@ class TestEventStore(unittest.TestCase):
     def testStubs(self):
         """Makes sure `EventStore` behaves the way we expect."""
         estore = logbook.EventStore()
-        self.assertRaises(NotImplementedError, estore.add_event, "key", "event")
+        self.assertRaises(NotImplementedError, estore.add_event, b"key",
+                          b"event")
         self.assertRaises(NotImplementedError, estore.get_events)
-        self.assertRaises(NotImplementedError, estore.get_events, "from")
-        self.assertRaises(NotImplementedError, estore.get_events, "from", "to")
-        self.assertRaises(NotImplementedError, estore.key_exists, "key")
-        estore.close() # Should not throw anything
+        self.assertRaises(NotImplementedError, estore.get_events, b"from")
+        self.assertRaises(NotImplementedError, estore.get_events, b"from",
+                          b"to")
+        self.assertRaises(NotImplementedError, estore.key_exists, b"key")
+        estore.close()  # Should not throw anything
 
 
 class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
@@ -113,9 +116,9 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         mocked_factories = []
 
         for params in self.rotated_estore_params:
-            if params['prefix']=='logdb':
+            if params['prefix'] == 'logdb':
                 factory = logbook._SQLiteEventStore
-            elif params['prefix']=='appendlog':
+            elif params['prefix'] == 'appendlog':
                 factory = logbook._LogEventStore
             else:
                 self.fail('Unrecognized prefix.')
@@ -124,15 +127,15 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
             with mock.patch('os.mkdir', side_effect=os.mkdir) as mkdir_mock:
                 rotated_store = logbook.RotatedEventStore(factory,
-                                                                 **params)
+                                                          **params)
                 mkdir_mock.assert_called_once(params['dirpath'])
 
             fname_absolute = os.path.join(params['dirpath'],
-                                          "%s.0" % params['prefix'])
+                                          "{0}.0".format(params['prefix']))
 
-            # If it wasn't for the fact that this class function was called from
-            # testReopening, we would be able to also assert that the factory
-            # was called with correct parameters.
+            # If it wasn't for the fact that this class function was called
+            # from testReopening, we would be able to also assert that the
+            # factory was called with correct parameters.
             self.assertEqual(factory.call_count, 1)
 
             rotated_stores.append(rotated_store)
@@ -171,7 +174,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self._openStore()
         events_after_reload = self.store.get_events()
         self.assertEqual(list(events_before_reload), list(events_after_reload))
-        
+
     def testKeyExists(self):
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
@@ -183,19 +186,19 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
                                 "Key did not exist: {0}".format(key))
 
     def _check_md5_is_correct(self, dirpath):
-        print "Directory:", dirpath
+        print("Directory:", dirpath)
         md5filename = os.path.join(dirpath, 'checksums.md5')
         self.assertTrue(os.path.exists(md5filename))
 
         checksums = logbook.KeyValuePersister(md5filename)
         files = [fname for fname in os.listdir(dirpath) if
-                 fname!='checksums.md5']
+                 fname != 'checksums.md5']
         self.assertEqual(set(files), set(checksums.keys()))
 
-        for fname, checksum in checksums.iteritems():
+        for fname, checksum in checksums.items():
             hasher = hashlib.md5()
             abspath = os.path.join(dirpath, fname)
-            with open(abspath) as f:
+            with open(abspath, 'rb') as f:
                 logbook._hashfile(f, hasher)
             self.assertEqual(hasher.hexdigest(), checksum)
 
@@ -216,23 +219,23 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         N = 20
 
         mstore1 = logbook.InMemoryEventStore()
-        mstore1.close = mock.MagicMock() # Needed for assertions
-        keys1 = [str(i) for i in range(N)]
-        vals1 = [str(i+30) for i in range(N)]
+        mstore1.close = mock.MagicMock()  # Needed for assertions
+        keys1 = ["{0}".format(i) for i in range(N)]
+        vals1 = ["{0}".format(i + 30).encode() for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
         mstore2 = logbook.InMemoryEventStore()
-        mstore2.close = mock.MagicMock() # Needed for assertions
-        keys2 = [str(i+N) for i in range(N)]
-        vals2 = [str(i+30+N) for i in range(N)]
+        mstore2.close = mock.MagicMock()  # Needed for assertions
+        keys2 = ["{0}".format(i + N) for i in range(N)]
+        vals2 = ["{0}".format(i + 30 + N).encode() for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 
         mstore3 = logbook.InMemoryEventStore()
-        mstore3.close = mock.MagicMock() # Needed for assertions
+        mstore3.close = mock.MagicMock()  # Needed for assertions
         keys3 = ['one', 'two', 'three']
-        vals3 = ['four', 'five', 'six']
+        vals3 = [b'four', b'five', b'six']
         for key, val in zip(keys3, vals3):
             mstore3.add_event(key, val)
 
@@ -254,8 +257,8 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
             exists_mock.return_value = True
             listdir_mock.return_value = ['eventdb.0', 'eventdb.1', 'eventdb.2']
             store = logbook.RotatedEventStore(estore_factory,
-                                                     '/random_dir',
-                                                     'eventdb')
+                                              '/random_dir',
+                                              'eventdb')
             exists_mock.assert_called_with('/random_dir')
             self.assertTrue(listdir_mock.call_count > 0)
 
@@ -267,7 +270,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         self.store = store
         self.keys = keys1 + keys2 + keys3
         self.vals = vals1 + vals2 + vals3
-        self.items = zip(self.keys, self.vals)
+        self.items = list(zip(self.keys, self.vals))
         self.keys3, self.vals3 = keys3, vals3
         self.estore_factory = estore_factory
         self.mstore1 = mstore1
@@ -289,16 +292,16 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         """Test writing to the rotated event store after rotation."""
         self.store.rotate()
 
-        self.assertFalse(self.store.key_exists('mykey'))
-        self.store.add_event('mykey', 'myvalue')
-        self.assertTrue(self.store.key_exists('mykey'),
+        self.assertFalse(self.store.key_exists(b'mykey'))
+        self.store.add_event(b'mykey', 'myvalue')
+        self.assertTrue(self.store.key_exists(b'mykey'),
                         "The event was expected to have been written.")
-        self.assertTrue(self.mstore4.key_exists('mykey'),
+        self.assertTrue(self.mstore4.key_exists(b'mykey'),
                         "The event seem to have been written to wrong estore.")
 
     def testKeyExists(self):
         """Testing RotatedEventStore.key_exists(...).
-        
+
         Overriding this test, because RotatedEventStore.key_exists(...) only
         checks the last batch.
         """
@@ -312,23 +315,23 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
                                                     suffix='.log',
                                                     delete=False)
-        self.tempfile.close() # We are not to modify it directly
+        self.tempfile.close()  # We are not to modify it directly
         self.store = logbook._LogEventStore(self.tempfile.name)
-        
+
         self._populate_store()
-    
+
     def testReopenWithClose(self):
         self.store.close()
         self.store = logbook._LogEventStore(self.tempfile.name)
         self.assertEqual(len(self.keys), len(self.vals),
-                        "Keys and vals did not match in number.")
+                         "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
 
     def testCorruptionCheckOnOpen(self):
         """Asserting we identify corrupt `LogEventStore` files."""
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
-            f.write("Random data %%%!!!??")
+            f.write(b"Random data %%%!!!??")
         self.assertRaises(logbook.LogBookCorruptionError,
                           logbook._LogEventStore,
                           self.tempfile.name)
@@ -344,14 +347,14 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
                                                     suffix='sqlite_evstore',
                                                     delete=False)
-        self.tempfile.close() # We are not to modify it directly
+        self.tempfile.close()  # We are not to modify it directly
         self.store = logbook._SQLiteEventStore(self.tempfile.name)
-        
+
         self._populate_store()
 
     def testCount(self):
         self.assertEqual(len(self.keys), len(self.vals),
-                        "Keys and vals did not match in number.")
+                         "Keys and vals did not match in number.")
         self.assertTrue(self.store.count() == len(self.keys),
                         "Count was incorrect.")
 
@@ -366,7 +369,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         """Asserting we identify corrupt `_SQLiteEventStore` files."""
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
-            f.write("Random data %%%!!!??")
+            f.write(b"Random data %%%!!!??")
         self.assertRaises(logbook.LogBookCorruptionError,
                           logbook._SQLiteEventStore,
                           self.tempfile.name)
@@ -374,7 +377,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
     def tearDown(self):
         self.store.close()
         os.remove(self.tempfile.name)
-        
+
 
 class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
     """Test `InMemoryEventStore`."""
@@ -386,7 +389,7 @@ class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
 @contextlib.contextmanager
 def _direct_stderr_to_stdout():
     """Context manager for wrapping tests that prints to stderr.
-    
+
     Nosetests does not capture stderr.
     """
     real_stderr = sys.stderr
@@ -417,7 +420,8 @@ class TestCommandLineExecution(unittest.TestCase):
 
     def testOnlyStreamingEndpointFails(self):
         with _direct_stderr_to_stdout():
-            logbook = _LogbookThread(['--streaming-bind-endpoint', 'tcp://hello'])
+            logbook = _LogbookThread(['--streaming-bind-endpoint',
+                                      'tcp://hello'])
             logbook.start()
             logbook.join(2)
         self.assertFalse(logbook.isAlive())
@@ -433,12 +437,12 @@ class TestCommandLineExecution(unittest.TestCase):
 
     def testStartingWithPersistence(self):
         datapath = tempfile.mkdtemp()
-        print "Using datapath:", datapath
+        print("Using datapath:", datapath)
 
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
-        print " ".join(args)
+        print(" ".join(args))
         self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
         self.logbook.start()
 
@@ -459,7 +463,7 @@ class _LogbookThread(threading.Thread):
     thread rather than external process. This makes it possible to check code
     coverage and track exit codes etc.
     """
-    _EXIT_CODE = 'EXIT'
+    _EXIT_CODE = b'EXIT'
 
     def __init__(self, cmdline_args, exit_addr=None):
         """Constructor.
@@ -471,8 +475,10 @@ class _LogbookThread(threading.Thread):
         thread = self
 
         assert '--exit-codeword' not in cmdline_args, \
-                "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
-        cmdline_args = ['--exit-codeword', _LogbookThread._EXIT_CODE] + cmdline_args
+               "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
+        cmdline_args = (['--exit-codeword',
+                         _LogbookThread._EXIT_CODE.decode()] +
+                        cmdline_args)
 
         def exitcode_runner(*args, **kwargs):
             try:
@@ -497,8 +503,8 @@ class _LogbookThread(threading.Thread):
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)
-        socket.send_unicode(_LogbookThread._EXIT_CODE)
-        time.sleep(0.5) # Acceptable exit time
+        socket.send(_LogbookThread._EXIT_CODE)
+        time.sleep(0.5)  # Acceptable exit time
         assert not self.isAlive()
         socket.close()
 
@@ -506,7 +512,7 @@ class _LogbookThread(threading.Thread):
 class TestLogbookReplication(unittest.TestCase):
 
     UUID_REGEXP = ("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-"
-                    "[0-9a-f]{12}")
+                   "[0-9a-f]{12}")
 
     def setUp(self):
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
@@ -518,7 +524,7 @@ class TestLogbookReplication(unittest.TestCase):
 
         self.transmitter = self.context.socket(zmq.PUSH)
         self.receiver = self.context.socket(zmq.SUB)
-        self.receiver.setsockopt(zmq.SUBSCRIBE, '')
+        self.receiver.setsockopt(zmq.SUBSCRIBE, b'')
 
         self.transmitter.connect('tcp://127.0.0.1:8090')
         self.receiver.connect('tcp://127.0.0.1:8091')
@@ -532,14 +538,14 @@ class TestLogbookReplication(unittest.TestCase):
         self.transmitter.setsockopt(zmq.LINGER, 1000)
 
     def testBasicEventProxying(self):
-        eventid = "abc12332fffgdgaab134432423"
-        eventstring = "THIS IS AN EVENT"
+        eventid = b"abc12332fffgdgaab134432423"
+        eventstring = b"THIS IS AN EVENT"
 
-        self.transmitter.send_unicode(eventstring)
+        self.transmitter.send(eventstring)
 
-        received_id = self.receiver.recv_unicode()
+        received_id = self.receiver.recv().decode()
         self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
-        received_string = self.receiver.recv_unicode()
+        received_string = self.receiver.recv()
         self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
         self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
@@ -553,19 +559,19 @@ class TestLogbookReplication(unittest.TestCase):
         NMESSAGES = 200
         messages = []
         for id in range(NMESSAGES):
-            eventstring = "THIS IS EVENT NUMBER %s" % id
+            eventstring = "THIS IS EVENT NUMBER {0}".format(id).encode()
             messages.append(eventstring)
 
         # Sending
         for msg in messages:
-            self.transmitter.send_unicode(msg)
+            self.transmitter.send(msg)
 
         # Receiving and asserting correct messages
         eventids = []
         for msg in messages:
-            received_id = self.receiver.recv_unicode()
+            received_id = self.receiver.recv().decode()
             self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
-            received_string = self.receiver.recv_unicode()
+            received_string = self.receiver.recv()
             self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
             self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
@@ -608,44 +614,44 @@ class TestLogbookQuerying(unittest.TestCase):
         # Could be removed if this test works as expected
         transmitter.setsockopt(zmq.LINGER, 1000)
 
-        ids = [unicode(uuid.uuid1()) for i in range(200)]
+        ids = [uuid.uuid1().hex for i in range(200)]
         self.assertEqual(len(ids), len(set(ids)), 'There were duplicate IDs.'
                          ' Maybe the UUID1 algorithm is flawed?')
-        users = [unicode(uuid.uuid1()) for i in range(30)]
+        users = [uuid.uuid1().hex for i in range(30)]
         self.assertEqual(len(users), len(set(users)),
                          'There were duplicate users.'
                          ' Maybe the UUID1 algorithm is flawed?')
 
         self.sent = []
         for id in ids:
-            eventstr = "Event with id '%s'" % id
-            transmitter.send_unicode(eventstr)
+            eventstr = "Event with id '{0}'".format(id).encode()
+            transmitter.send(eventstr)
             self.sent.append(eventstr)
         transmitter.close()
 
     def testSyncAllPastEvents(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event[1] for event in self.querier.query()]
         self.assertEqual(allevents, self.sent)
 
         self.assertEqual(allevents, self.sent, "Elements don't match.")
 
     def testSyncEventsSince(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         from_ = allevents[3][0]
         events = [event[1] for event in self.querier.query(from_=from_)]
         self.assertEqual([event[1] for event in allevents[4:]], events)
-        
+
     def testSyncEventsBefore(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         to = allevents[-3][0]
         events = [event[1] for event in self.querier.query(to=to)]
         self.assertEqual([event[1] for event in allevents[:-2]], events)
 
     def testSyncEventsBetween(self):
-        time.sleep(0.5) # Max time to persist the messages
+        time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         from_ = allevents[3][0]
         to = allevents[-3][0]
@@ -696,11 +702,11 @@ class TestKeyValuePersister(unittest.TestCase):
         self.namedfile = None
 
     def _write_keyvals(self):
-        for key, val in self.keyvals.iteritems():
+        for key, val in self.keyvals.items():
             self.keyvalpersister[key] = val
 
     def _assertValuesWereWritten(self):
-        for key, val in self.keyvals.iteritems():
+        for key, val in self.keyvals.items():
             self.assertTrue(key in self.keyvalpersister)
             self.assertEqual(self.keyvalpersister[key], val)
         self.assertEqual(len(self.keyvalpersister), len(self.keyvals))
@@ -710,11 +716,12 @@ class TestKeyValuePersister(unittest.TestCase):
         self._assertValuesWereWritten()
 
     def _assert_delimieter_key_exception(self):
-        faulty_kvs = [("a key", "value"), ("key ", "value"), (" key", "value"),
-                      ("multiline\nkey", "value"), ("key", "multiline\nvalue")]
+        faulty_kvs = [("a key", "value"), ("key ", "value"),
+                      (" key", "value"), ("multiline\nkey", "value"),
+                      ("key", "multiline\nvalue")]
         for key, val in faulty_kvs:
-            self.assertRaises(logbook.KeyValuePersister.InsertError,
-                              lambda: self.keyvalpersister.__setitem__(key, val))
+            setter = lambda: self.keyvalpersister.__setitem__(key, val)
+            self.assertRaises(logbook.KeyValuePersister.InsertError, setter)
 
     def testAppendingKeyContainingDelimiter(self):
         self._assert_delimieter_key_exception()
@@ -744,7 +751,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self._write_keyvals()
 
         # Changing value of the first key
-        first_key = self.keyvals.keys()[0]
+        first_key = next(iter(self.keyvals.keys()))
         new_value = "56"
         self.assertNotEqual(self.keyvalpersister[first_key], new_value)
         self.keyvalpersister[first_key] = new_value
@@ -757,21 +764,22 @@ class TestKeyValuePersister(unittest.TestCase):
         __delitem__ is not really used, but we want to keep 100% coverage,
         so...
         """
-        self.assertRaises(NotImplementedError, self.keyvalpersister.__delitem__,
-                          self.keyvals.keys()[0])
+        self.assertRaises(NotImplementedError,
+                          self.keyvalpersister.__delitem__,
+                          next(iter(self.keyvals.keys())))
 
     def testFileOutput(self):
         """Making sure we are writing in md5sum format."""
         self._write_keyvals()
 
         self.keyvalpersister.close()
-        self.keyvalpersister = None # Needed so tearDown doesn't close
+        self.keyvalpersister = None  # Needed so tearDown doesn't close
 
-        with open(self.keyvalfile) as f:
+        with open(self.keyvalfile, 'r') as f:
             content = f.read()
             actual_lines = content.splitlines()
-            expected_lines = ["%s %s" % (k,v)
-                              for k,v in self.keyvals.iteritems()]
+            expected_lines = ["{0} {1}".format(k, v)
+                              for k, v in self.keyvals.items()]
         self.assertEquals(actual_lines, expected_lines)
 
     def testOpeningNonExistingFile(self):

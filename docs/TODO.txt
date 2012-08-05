@@ -10,3 +10,6 @@ TODO list
    methods are mentioned in the pydoc.
  * Add documentation about the overall architecture.
  * Write tests that makes sure imports are sorted in alphabetical order.
+ * Verify encodings are specified for
+  * `open(...)` calls.
+  * `encode(...)` and `decode(...)` calls.
