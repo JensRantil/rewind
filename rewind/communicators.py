@@ -37,8 +37,8 @@ class EventQuerier(object):
         Since the logbook streams events in batches, this method might not
         receive all requested events.
         """
-        assert from_ is None or isinstance(from_, str)
-        assert to is None or isinstance(to, str)
+        assert from_ is None or isinstance(from_, str), type(from_)
+        assert to is None or isinstance(to, str), type(to)
         self.socket.send(b'QUERY', zmq.SNDMORE)
         self.socket.send(from_.encode() if from_ else b'', zmq.SNDMORE)
         self.socket.send(to.encode() if to else b'')
@@ -55,10 +55,16 @@ class EventQuerier(object):
                 assert not self.socket.getsockopt(zmq.RCVMORE)
                 raise self.QueryException("Could not query: {0}".format(data))
             else:
-                eventid = data.decode()
+                if not isinstance(data, str):
+                    assert isinstance(data, bytes)
+                    eventid = data.decode()
+                else:
+                    # Python 2
+                    eventid = data
                 assert self.socket.getsockopt(zmq.RCVMORE)
                 eventdata = self.socket.recv()
 
+                assert isinstance(eventid, str), type(eventid)
                 eventtuple = (eventid, eventdata)
                 events.append(eventtuple)
 
