@@ -1,6 +1,8 @@
 """Test code format and coding standards."""
+from __future__ import print_function
 import os
 import pep8
+import pep257
 import unittest
 
 
@@ -24,3 +26,14 @@ class TestCodeFormat(unittest.TestCase):
         # buggy and will report them to the pep8 project on github.
         self.assertEqual(result.total_errors, 2,
                          "Found code syntax errors (and warnings).")
+
+    def testPep257Conformance(self):
+        """Test that we conform to PEP257."""
+        pyfiles = self._get_all_pyfiles()
+
+        errors = pep257.check_files(pyfiles)
+        if errors:
+            print("There were errors:")
+            for error in errors:
+                print(error)
+        self.assertEquals(len(errors), 0)
