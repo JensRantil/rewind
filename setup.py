@@ -32,6 +32,7 @@ setup(
         "Topic :: Software Development :: Object Brokering",
         "Topic :: System :: Distributed Computing",
     ],
+    keywords="CQRS, event sourcing",
     setup_requires=[
         'nose>=1.0',
         'coverage==3.5.1',
