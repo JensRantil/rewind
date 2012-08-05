@@ -21,7 +21,7 @@ setup(
     ],
     long_description=open('DESCRIPTION.rst').read(),
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Environment :: No Input/Output (Daemon)",
         "Intended Audience :: Other Audience",
         "License :: OSI Approved :: GNU Affero General Public License v3",
