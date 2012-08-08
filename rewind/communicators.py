@@ -3,11 +3,14 @@ import zmq
 
 
 class EventQuerier(object):
+
     """Client that queries events from rewind over ZeroMQ."""
+
     class QueryException(Exception):
         """Raised when rewind server returns an error.
 
         Usually this exception means you have used a non-existing query key.
+
         """
         pass
 
@@ -36,6 +39,14 @@ class EventQuerier(object):
 
         Since the Rewind streams events in batches, this method might not
         receive all requested events.
+
+        Returns the tuple `(done, events)` where
+         * `done` is a boolean whether the limited query result reached the
+           end, or whether there's more events that need to be collected.
+         * `events` is a list of `(eventid, eventdata)` event tuples where
+          * `eventid` is a unique string the signifies the event; and
+          * `eventdata` is a byte string containing the serialized event.
+
         """
         assert from_ is None or isinstance(from_, str), type(from_)
         assert to is None or isinstance(to, str), type(to)

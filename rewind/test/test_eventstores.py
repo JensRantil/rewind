@@ -1,5 +1,8 @@
 """Tests of event stores."""
+from __future__ import print_function
+import contextlib
 import hashlib
+import itertools
 import os
 import random
 import shutil
@@ -13,6 +16,10 @@ import rewind.rewind as rewind
 
 
 class TestKeyValuePersister(unittest.TestCase):
+
+    """Test `_KeyValuePersister`."""
+
+    # Test data
     keyvals = {
         'key1': 'val1',
         'key2': 'value number two',
@@ -20,6 +27,7 @@ class TestKeyValuePersister(unittest.TestCase):
     }
 
     def setUp(self):
+        """Set up a prepopulated `_KeyValuePersister`."""
         namedfile = tempfile.NamedTemporaryFile(delete=False)
         self.keyvalfile = namedfile.name
         keyvalpersister = self._open_persister()
@@ -28,9 +36,11 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister = keyvalpersister
 
     def _open_persister(self):
+        """Return a newly opened prepopulated `_KeyValuePersister`."""
         return eventstores._KeyValuePersister(self.keyvalfile)
 
     def tearDown(self):
+        """Close the opened `_KeyValuePersister`, if needed."""
         if self.keyvalpersister:
             self.keyvalpersister.close()
             self.keyvalpersister = None
@@ -39,20 +49,28 @@ class TestKeyValuePersister(unittest.TestCase):
         self.namedfile = None
 
     def _write_keyvals(self):
+        """Prepopulate the already opened `_KeyValuePersister`."""
         for key, val in self.keyvals.items():
             self.keyvalpersister[key] = val
 
     def _assertValuesWereWritten(self):
+        """Assert the prepopulated values were written to disk."""
         for key, val in self.keyvals.items():
             self.assertTrue(key in self.keyvalpersister)
             self.assertEqual(self.keyvalpersister[key], val)
         self.assertEqual(len(self.keyvalpersister), len(self.keyvals))
 
     def testAppending(self):
+        """Test appending new values to the test persister."""
         self._write_keyvals()
         self._assertValuesWereWritten()
 
     def _assert_delimieter_key_exception(self):
+        """Make sure we throw exceptions on malformated keys and values.
+
+        TODO: Correct incorrect spelling of this function.
+
+        """
         faulty_kvs = [("a key", "value"), ("key ", "value"),
                       (" key", "value"), ("multiline\nkey", "value"),
                       ("key", "multiline\nvalue")]
@@ -62,10 +80,12 @@ class TestKeyValuePersister(unittest.TestCase):
                               setter)
 
     def testAppendingKeyContainingDelimiter(self):
+        """Make sure we throw exceptions on malformated keys and values."""
         self._assert_delimieter_key_exception()
         self.assertEqual(len(self.keyvalpersister), 0)
 
     def testWritingAfterInsertError(self):
+        """Make sure we can write correct k/vs after an incorrect one."""
         self.testAppendingKeyContainingDelimiter()
         self._write_keyvals()
         self._assert_delimieter_key_exception()
@@ -73,6 +93,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self._assertValuesWereWritten()
 
     def testReopen(self):
+        """Test closing en reopening a `_KeyValuePersister`."""
         self._write_keyvals()
         self._assertValuesWereWritten()
         for i in range(3):
@@ -81,11 +102,13 @@ class TestKeyValuePersister(unittest.TestCase):
             self._assertValuesWereWritten()
 
     def testIter(self):
+        """Test iterating over key-values in a `_KeyValuePersister`."""
         self._write_keyvals()
         vals = iter(self.keyvalpersister)
         self.assertEqual(set(vals), set(self.keyvals))
 
     def testChangingValue(self):
+        """Test changing a value in `_KeyValuePersister`."""
         self._write_keyvals()
 
         # Changing value of the first key
@@ -101,6 +124,7 @@ class TestKeyValuePersister(unittest.TestCase):
 
         __delitem__ is not really used, but we want to keep 100% coverage,
         so...
+
         """
         self.assertRaises(NotImplementedError,
                           self.keyvalpersister.__delitem__,
@@ -121,6 +145,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self.assertEquals(actual_lines, expected_lines)
 
     def testOpeningNonExistingFile(self):
+        """Test we don't throw exception when opening non-existing file."""
         randomfile = tempfile.NamedTemporaryFile()
         randomfile.close()
         self.assertFalse(os.path.exists(randomfile.name),
@@ -129,16 +154,20 @@ class TestKeyValuePersister(unittest.TestCase):
 
 
 class _TestEventStore:
+
     """Test a generic event store.
 
     This class is abstract and should be subclassed in a class that defines a
     setUp(self) class function.
+
     """
+
     def _populate_store(self):
         """Helper method to populate the store.
 
         The keys and values that were put in the store are saved to self.keys
         and self.vals.
+
         """
         # Randomizing here mostly because rotation will behave differently
         # depending on the number of generated events.
@@ -154,35 +183,43 @@ class _TestEventStore:
             self.store.add_event(key, val)
 
     def testQueryingAll(self):
+        """Test query for all events."""
         result = self.store.get_events()
         self.assertEqual(list(result), self.items)
 
     def testQueryAfter(self):
+        """Test to query all events after a certain time."""
         result = self.store.get_events(from_=self.keys[0])
         self.assertEqual(list(result), self.items[1:])
         result = self.store.get_events(from_=self.keys[1])
         self.assertEqual(list(result), self.items[2:])
 
     def testQueryBefore(self):
+        """Test to query all events before a certain time."""
         result = self.store.get_events(to=self.keys[-1])
         self.assertEqual(list(result), self.items)
         result = self.store.get_events(to=self.keys[-2])
         self.assertEqual(list(result), self.items[:-1])
 
     def testQueryBetween(self):
+        """Test to query events between to times."""
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
         self.assertEqual(list(result), self.items[2:-1])
 
     def testKeyExists(self):
+        """Test `EventStore.key_exists(...)` behaviour."""
         for key in self.keys:
             self.assertTrue(self.store.key_exists(key),
                             "Key did not exist: {0}".format(key))
 
 
 class TestEventStore(unittest.TestCase):
+
     """Tests the class `EventStore`."""
+
     def testStubs(self):
-        """Makes sure `EventStore` behaves the way we expect."""
+        """Make sure `EventStore` behaves the way we expect."""
+        estore = eventstores.EventStore()
         estore = eventstores.EventStore()
         self.assertRaises(NotImplementedError, estore.add_event, b"key",
                           b"event")
@@ -195,12 +232,14 @@ class TestEventStore(unittest.TestCase):
 
 
 class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
+
     """Test `SyncedRotationEventStores`."""
 
     # Number of events per batch
     EVS_PER_BATCH = 5
 
     def setUp(self):
+        """Prepare each test."""
         basedir = tempfile.mkdtemp()
         rotated_estore_params = [
             {
@@ -261,6 +300,11 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self.store = store
 
     def tearDown(self):
+        """Close temp store if necessary and assert it was closed correctly.
+
+        Also making sure to remove the temporary store from disk.
+
+        """
         if self.store is not None:
             # Only close if no other test has already closed it and assigned it
             # None.
@@ -277,6 +321,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self.assertFalse(os.path.exists(self.basedir))
 
     def testReopening(self):
+        """Test closing and reopening `RotatedEventStore`."""
         events_before_reload = self.store.get_events()
         self.store.close()
         self._openStore()
@@ -284,6 +329,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self.assertEqual(list(events_before_reload), list(events_after_reload))
 
     def testKeyExists(self):
+        """Test `RotatedEventStore.key_exists(...)`."""
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
         if nkeys_in_last_batch > 0:
@@ -318,11 +364,17 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             self._check_md5_is_correct(param['dirpath'])
 
 
-class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
+class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
+
+    """Test `RotatedEventStore`."""
+
     def setUp(self):
         """Setup method before each test.
 
         TODO: Use loops instead of suffixed variables.
+
+        Returns nothing.
+
         """
         N = 20
 
@@ -386,6 +438,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         self.mstore4 = mstore4
 
     def testRotation(self):
+        """Test that rotation works."""
         self.mstore2.close.reset_mock()
         self.estore_factory.reset_mock()
 
@@ -411,6 +464,7 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
 
         Overriding this test, because RotatedEventStore.key_exists(...) only
         checks the last batch.
+
         """
         for key in self.keys3:
             self.assertTrue(self.store.key_exists(key),
@@ -418,7 +472,11 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
 
 
 class TestLogEventStore(unittest.TestCase, _TestEventStore):
+
+    """Test `_LogEventStore`."""
+
     def setUp(self):
+        """Prepare a temporary test `_LogEventStore`."""
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_rewind',
                                                     suffix='.log',
                                                     delete=False)
@@ -428,6 +486,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self._populate_store()
 
     def testReopenWithClose(self):
+        """Test closing and reopening a `_LogEventStore`."""
         self.store.close()
         self.store = eventstores.LogEventStore(self.tempfile.name)
         self.assertEqual(len(self.keys), len(self.vals),
@@ -435,7 +494,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
 
     def testCorruptionCheckOnOpen(self):
-        """Asserting we identify corrupt `LogEventStore` files."""
+        """Assert we identify corrupt `_LogEventStore` files."""
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
@@ -444,13 +503,17 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                           self.tempfile.name)
 
     def tearDown(self):
+        """Close and remove the temporary store."""
         self.store.close()
         os.remove(self.tempfile.name)
 
 
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
+
     """Test `SQLiteEventStore`."""
+
     def setUp(self):
+        """Create and populate a temporary `_SQLiteEventStore`."""
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_rewind',
                                                     suffix='sqlite_evstore',
                                                     delete=False)
@@ -460,12 +523,14 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self._populate_store()
 
     def testCount(self):
+        """Test counting the number of events added."""
         self.assertEqual(len(self.keys), len(self.vals),
                          "Keys and vals did not match in number.")
         self.assertTrue(self.store.count() == len(self.keys),
                         "Count was incorrect.")
 
     def testReopenWithClose(self):
+        """Test closing and reopening a store."""
         self.store.close()
         self.store = eventstores.SQLiteEventStore(self.tempfile.name)
 
@@ -482,12 +547,16 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
                           self.tempfile.name)
 
     def tearDown(self):
+        """Close and remove temporary store used by tests."""
         self.store.close()
         os.remove(self.tempfile.name)
 
 
 class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
+
     """Test `InMemoryEventStore`."""
+
     def setUp(self):
+        """Initialize an `InMemoryEventStore` used for testing."""
         self.store = eventstores.InMemoryEventStore()
         self._populate_store()

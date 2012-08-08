@@ -7,8 +7,12 @@ import unittest
 
 
 class TestCodeFormat(unittest.TestCase):
+
+    """Tests that asserts code quality."""
+
     @staticmethod
     def _get_all_pyfiles():
+        """Return a list of all Python files in Rewind."""
         pyfiles = []
         for dirpath, _, filenames in os.walk('rewind'):
             pyfiles.extend([os.path.join(dirpath, filename)
