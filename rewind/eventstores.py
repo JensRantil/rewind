@@ -1,3 +1,8 @@
+"""Different event stores.
+
+Every event stores is derived from `EventStore`.
+
+"""
 import base64
 import collections
 import contextlib

@@ -1,3 +1,4 @@
+"""Tests of event stores."""
 import hashlib
 import os
 import random
