@@ -1,20 +1,22 @@
 import base64
+import collections
 import contextlib
 import hashlib
 import itertools
 import logging
 import os
-import rewind
 import sqlite3
 
 
 logger = logging.getLogger(__name__)
 
 
+# Utility functions and classes used by event stores
+
 def _get_checksum_persister(path):
     directory = os.path.dirname(path)
     checksum_fname = os.path.join(directory, "checksums.md5")
-    checksum_persister = rewind.KeyValuePersister(checksum_fname)
+    checksum_persister = KeyValuePersister(checksum_fname)
     return checksum_persister
 
 
@@ -25,6 +27,117 @@ def _hashfile(afile, hasher, blocksize=65536):
         buf = afile.read(blocksize)
 
 
+class KeyValuePersister(collections.MutableMapping):
+    """A persisted append-only MutableMapping implementation."""
+    _delimiter = " "
+
+    class InsertError(Exception):
+        """Raised when trying to insert a malformed key or value."""
+        pass
+
+    def __init__(self, filename):
+        assert isinstance(filename, str)
+        self._filename = filename
+        self._open()
+
+    @staticmethod
+    def _actually_populate_keyvals(filename):
+        """Actually read the key/values from a file.
+
+        Raises IOError if the file does not exit etcetera.
+        """
+        assert isinstance(filename, str)
+        keyvals = {}
+        with open(filename, 'r') as f:
+            for line in f:
+                line = line.strip("\r\n")
+                pieces = line.split(KeyValuePersister._delimiter)
+                if len(pieces) >= 2:
+                    key = pieces[0]
+                    val = KeyValuePersister._delimiter.join(pieces[1:])
+                    keyvals[key] = val
+        return keyvals
+
+    @staticmethod
+    def _read_keyvals(filename):
+        """Read the key/values if the file exists.
+
+        returns -- a dictionary with key/values, or empty dictionary if the
+                   file does not exist.
+        """
+        assert isinstance(filename, str)
+        if os.path.exists(filename):
+            return KeyValuePersister._actually_populate_keyvals(filename)
+        else:
+            return {}
+
+    def _open(self):
+        keyvals = self._read_keyvals(self._filename)
+
+        rawfile = open(self._filename, 'a')
+
+        self._keyvals = keyvals
+        self._file = rawfile
+
+    def close(self):
+        """Close the persister.
+
+        Important to do to not have file descriptor leakages.
+        """
+        self._file.close()
+        self._file = None
+
+    def __delitem__(self, key):
+        raise NotImplementedError('KeyValuePersister is append only.')
+
+    def __getitem__(self, key):
+        assert isinstance(key, str)
+        return self._keyvals[key]
+
+    def __iter__(self):
+        return iter(self._keyvals)
+
+    def __len__(self):
+        return len(self._keyvals)
+
+    def __setitem__(self, key, val):
+        assert isinstance(key, str)
+        assert isinstance(val, str)
+        if self._delimiter in key:
+            msg = "Key contained delimiter: {0}".format(key)
+            raise KeyValuePersister.InsertError(msg)
+        if "\n" in key:
+            msg = "Key must not contain any newline. It did: {0}"
+            raise KeyValuePersister.InsertError(msg.format(key))
+        if "\n" in val:
+            msg = "Value must not contain any newline. It did: {0}"
+            raise KeyValuePersister.InsertError(msg.format(val))
+        if key in self._keyvals:
+            self.close()
+            oldval = self._keyvals[key]
+            self._keyvals[key] = val
+            try:
+                with open(self._filename, 'w') as f:
+                    # Rewriting the whole file serially. Yes, it's a slow
+                    # operation, but hey - it's an ascii file
+                    for key, val in self._keyvals.items():
+                        f.write(key)
+                        f.write(self._delimiter)
+                        f.write(val)
+                        f.write('\n')
+            except Exception as e:
+                self._keyvals[key] = oldval
+                raise e
+            finally:
+                self._open()
+        else:
+            self._file.write(key)
+            self._file.write(self._delimiter)
+            self._file.write(val)
+            self._file.write('\n')
+            self._keyvals[key] = val
+
+
 def _initialize_hasher(path):
     hasher = hashlib.md5()
     if os.path.exists(path):
@@ -32,6 +145,8 @@ def _initialize_hasher(path):
             _hashfile(f, hasher)
     return hasher
 
+
+# Errors thrown by event stores
 
 class LogBookKeyError(KeyError):
     """Exception thrown if a requested key did not exist."""
@@ -50,6 +165,8 @@ class LogBookCorruptionError(Exception):
     """Exception raised when data seem corrupt."""
     pass
 
+
+# Event stores
 
 class EventStore(object):
     """Stores events and keeps track of their order.
