@@ -3,7 +3,6 @@ import argparse
 import base64
 import collections
 import contextlib
-import csv
 import hashlib
 import itertools
 import logging
