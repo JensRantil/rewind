@@ -193,7 +193,7 @@ that you don't touch the global Python environment)::
     source ../bin/activate
 
 The first time you've checked the project out, you want to initialize
-development mode:
+development mode::
 
     python setup.py develop
 
