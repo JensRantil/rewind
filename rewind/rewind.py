@@ -941,7 +941,7 @@ def run(args):
 
 
 def main(argv=None):
-    """Entry point for the logbook.
+    """Entry point for Rewind.
 
     Parses input and calls run() for the real work.
 
@@ -952,7 +952,7 @@ def main(argv=None):
         description='Event storage and event proxy.'
     )
     parser.add_argument('--exit-codeword', metavar="MSG", dest="exit_message",
-                        help="An incoming message that makes the logbook quit."
+                        help="An incoming message that makes Rewind quit."
                              " Used for testing.")
     parser.add_argument('--datadir', '-D', metavar="DIR",
                         help="The directory where events will be persisted."
