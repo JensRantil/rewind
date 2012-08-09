@@ -35,7 +35,7 @@ write and the read side. The event store takes care of three things:
   can be synced back on track and new components can be brought back in
   play.
 
-``rewind`` is an event store application that talks ZeroMQ. It is written
+*Rewind* is an event store application that talks ZeroMQ. It is written
 in Python and supports multiple storage backends.
 
 Installing
