@@ -34,7 +34,7 @@ class EventQuerier(object):
     def _real_query(self, from_, to):
         """Make the actual query for events.
 
-        Since the logbook streams events in batches, this method might not
+        Since the Rewind streams events in batches, this method might not
         receive all requested events.
         """
         assert from_ is None or isinstance(from_, str), type(from_)

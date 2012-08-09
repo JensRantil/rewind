@@ -17,7 +17,7 @@ import mock
 import zmq
 
 import rewind.communicators as communicators
-import rewind.logbook as logbook
+import rewind.rewind as rewind
 
 
 class _TestEventStore:
@@ -75,7 +75,7 @@ class TestEventStore(unittest.TestCase):
     """Tests the class `EventStore`."""
     def testStubs(self):
         """Makes sure `EventStore` behaves the way we expect."""
-        estore = logbook.EventStore()
+        estore = rewind.EventStore()
         self.assertRaises(NotImplementedError, estore.add_event, b"key",
                           b"event")
         self.assertRaises(NotImplementedError, estore.get_events)
@@ -117,17 +117,17 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
         for params in self.rotated_estore_params:
             if params['prefix'] == 'logdb':
-                factory = logbook._SQLiteEventStore
+                factory = rewind._SQLiteEventStore
             elif params['prefix'] == 'appendlog':
-                factory = logbook._LogEventStore
+                factory = rewind._LogEventStore
             else:
                 self.fail('Unrecognized prefix.')
             factory = mock.Mock(wraps=factory)
             mocked_factories.append(factory)
 
             with mock.patch('os.mkdir', side_effect=os.mkdir) as mkdir_mock:
-                rotated_store = logbook.RotatedEventStore(factory,
-                                                          **params)
+                rotated_store = rewind.RotatedEventStore(factory,
+                                                         **params)
                 mkdir_mock.assert_called_once(params['dirpath'])
 
             fname_absolute = os.path.join(params['dirpath'],
@@ -147,7 +147,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self._init_rotated_stores()
 
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
-        store = logbook.SyncedRotationEventStores(evs_per_batch)
+        store = rewind.SyncedRotationEventStores(evs_per_batch)
         for rotated_store in self.rotated_stores:
             store.add_rotated_store(rotated_store)
         self.store = store
@@ -190,7 +190,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         md5filename = os.path.join(dirpath, 'checksums.md5')
         self.assertTrue(os.path.exists(md5filename))
 
-        checksums = logbook.KeyValuePersister(md5filename)
+        checksums = rewind.KeyValuePersister(md5filename)
         files = [fname for fname in os.listdir(dirpath) if
                  fname != 'checksums.md5']
         self.assertEqual(set(files), set(checksums.keys()))
@@ -199,7 +199,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             hasher = hashlib.md5()
             abspath = os.path.join(dirpath, fname)
             with open(abspath, 'rb') as f:
-                logbook._hashfile(f, hasher)
+                rewind._hashfile(f, hasher)
             self.assertEqual(hasher.hexdigest(), checksum)
 
     def testMD5WasWritten(self):
@@ -218,28 +218,28 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
         """
         N = 20
 
-        mstore1 = logbook.InMemoryEventStore()
+        mstore1 = rewind.InMemoryEventStore()
         mstore1.close = mock.MagicMock()  # Needed for assertions
         keys1 = ["{0}".format(i) for i in range(N)]
         vals1 = ["{0}".format(i + 30).encode() for i in range(N)]
         for key, val in zip(keys1, vals1):
             mstore1.add_event(key, val)
 
-        mstore2 = logbook.InMemoryEventStore()
+        mstore2 = rewind.InMemoryEventStore()
         mstore2.close = mock.MagicMock()  # Needed for assertions
         keys2 = ["{0}".format(i + N) for i in range(N)]
         vals2 = ["{0}".format(i + 30 + N).encode() for i in range(N)]
         for key, val in zip(keys2, vals2):
             mstore2.add_event(key, val)
 
-        mstore3 = logbook.InMemoryEventStore()
+        mstore3 = rewind.InMemoryEventStore()
         mstore3.close = mock.MagicMock()  # Needed for assertions
         keys3 = ['one', 'two', 'three']
         vals3 = [b'four', b'five', b'six']
         for key, val in zip(keys3, vals3):
             mstore3.add_event(key, val)
 
-        mstore4 = logbook.InMemoryEventStore()
+        mstore4 = rewind.InMemoryEventStore()
 
         def es_factory(fname):
             """Pretends to open an event store from a filename."""
@@ -256,9 +256,9 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
                 mock.patch('os.listdir') as listdir_mock:
             exists_mock.return_value = True
             listdir_mock.return_value = ['eventdb.0', 'eventdb.1', 'eventdb.2']
-            store = logbook.RotatedEventStore(estore_factory,
-                                              '/random_dir',
-                                              'eventdb')
+            store = rewind.RotatedEventStore(estore_factory,
+                                             '/random_dir',
+                                             'eventdb')
             exists_mock.assert_called_with('/random_dir')
             self.assertTrue(listdir_mock.call_count > 0)
 
@@ -312,17 +312,17 @@ class TestRotatedEventStorage(unittest.TestCase, _TestEventStore):
 
 class TestLogEventStore(unittest.TestCase, _TestEventStore):
     def setUp(self):
-        self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
+        self.tempfile = tempfile.NamedTemporaryFile(prefix='test_rewind',
                                                     suffix='.log',
                                                     delete=False)
         self.tempfile.close()  # We are not to modify it directly
-        self.store = logbook._LogEventStore(self.tempfile.name)
+        self.store = rewind._LogEventStore(self.tempfile.name)
 
         self._populate_store()
 
     def testReopenWithClose(self):
         self.store.close()
-        self.store = logbook._LogEventStore(self.tempfile.name)
+        self.store = rewind._LogEventStore(self.tempfile.name)
         self.assertEqual(len(self.keys), len(self.vals),
                          "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
@@ -332,8 +332,8 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
-        self.assertRaises(logbook.LogBookCorruptionError,
-                          logbook._LogEventStore,
+        self.assertRaises(rewind.LogBookCorruptionError,
+                          rewind._LogEventStore,
                           self.tempfile.name)
 
     def tearDown(self):
@@ -344,11 +344,11 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
     """Test `_SQLiteEventStore`."""
     def setUp(self):
-        self.tempfile = tempfile.NamedTemporaryFile(prefix='test_logbook',
+        self.tempfile = tempfile.NamedTemporaryFile(prefix='test_rewind',
                                                     suffix='sqlite_evstore',
                                                     delete=False)
         self.tempfile.close()  # We are not to modify it directly
-        self.store = logbook._SQLiteEventStore(self.tempfile.name)
+        self.store = rewind._SQLiteEventStore(self.tempfile.name)
 
         self._populate_store()
 
@@ -360,7 +360,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
     def testReopenWithClose(self):
         self.store.close()
-        self.store = logbook._SQLiteEventStore(self.tempfile.name)
+        self.store = rewind._SQLiteEventStore(self.tempfile.name)
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
@@ -370,8 +370,8 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
-        self.assertRaises(logbook.LogBookCorruptionError,
-                          logbook._SQLiteEventStore,
+        self.assertRaises(rewind.LogBookCorruptionError,
+                          rewind._SQLiteEventStore,
                           self.tempfile.name)
 
     def tearDown(self):
@@ -382,7 +382,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
     """Test `InMemoryEventStore`."""
     def setUp(self):
-        self.store = logbook.InMemoryEventStore()
+        self.store = rewind.InMemoryEventStore()
         self._populate_store()
 
 
@@ -399,41 +399,41 @@ def _direct_stderr_to_stdout():
 
 
 class TestCommandLineExecution(unittest.TestCase):
-    """Tests various command line arguments for `logbook`."""
+    """Tests various command line arguments for `rewind`."""
     def setUp(self):
         # See tearDown() why this one is defined
-        self.logbook = None
+        self.rewind = None
 
     def tearDown(self):
-        if self.logbook and self.logbook.isAlive():
-            # Making sure to close a logbook if it has been defined
-            self.logbook.stop()
-            self.logbook = None
+        if self.rewind and self.rewind.isAlive():
+            # Making sure to close rewind if it has been defined
+            self.rewind.stop()
+            self.rewind = None
 
     def testAtLeastOneEndpointRequired(self):
         with _direct_stderr_to_stdout():
-            logbook = _LogbookThread([])
-            logbook.start()
-            logbook.join(2)
-        self.assertFalse(logbook.isAlive())
-        self.assertEqual(logbook.exit_code, 2)
+            rewind = _LogbookThread([])
+            rewind.start()
+            rewind.join(2)
+        self.assertFalse(rewind.isAlive())
+        self.assertEqual(rewind.exit_code, 2)
 
     def testOnlyStreamingEndpointFails(self):
         with _direct_stderr_to_stdout():
-            logbook = _LogbookThread(['--streaming-bind-endpoint',
-                                      'tcp://hello'])
-            logbook.start()
-            logbook.join(2)
-        self.assertFalse(logbook.isAlive())
-        self.assertEqual(logbook.exit_code, 2)
+            rewind = _LogbookThread(['--streaming-bind-endpoint',
+                                     'tcp://hello'])
+            rewind.start()
+            rewind.join(2)
+        self.assertFalse(rewind.isAlive())
+        self.assertEqual(rewind.exit_code, 2)
 
     def testHelp(self):
         with _direct_stderr_to_stdout():
-            logbook = _LogbookThread(['--help'])
-            logbook.start()
-            logbook.join(2)
-        self.assertFalse(logbook.isAlive())
-        self.assertEqual(logbook.exit_code, 0)
+            rewind = _LogbookThread(['--help'])
+            rewind.start()
+            rewind.join(2)
+        self.assertFalse(rewind.isAlive())
+        self.assertEqual(rewind.exit_code, 0)
 
     def testStartingWithPersistence(self):
         datapath = tempfile.mkdtemp()
@@ -443,12 +443,12 @@ class TestCommandLineExecution(unittest.TestCase):
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
         print(" ".join(args))
-        self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
-        self.logbook.start()
+        self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind.start()
 
         time.sleep(3)
-        self.assertTrue(self.logbook.isAlive(),
-                        "The logbook was not running for more than 3 seconds")
+        self.assertTrue(self.rewind.isAlive(),
+                        "Rewind was not running for more than 3 seconds")
 
         # Not removing this in tearDown for two reasons:
         # 1. Datapath is not created in setUp()
@@ -457,9 +457,9 @@ class TestCommandLineExecution(unittest.TestCase):
 
 
 class _LogbookThread(threading.Thread):
-    """A thread that runs a logbook instance.
+    """A thread that runs a rewind instance.
 
-    While the thread is given command line arguments, the logbook is started as
+    While the thread is given command line arguments, Rewind is started as
     thread rather than external process. This makes it possible to check code
     coverage and track exit codes etc.
     """
@@ -469,7 +469,7 @@ class _LogbookThread(threading.Thread):
         """Constructor.
 
         Parameters:
-        cmdline_args -- command line arguments used to execute the logbook.
+        cmdline_args -- command line arguments used to execute the rewind.
         exit_addr    -- the ZeroMQ address used to send the exit message to.
         """
         thread = self
@@ -482,7 +482,7 @@ class _LogbookThread(threading.Thread):
 
         def exitcode_runner(*args, **kwargs):
             try:
-                thread.exit_code = logbook.main(*args, **kwargs)
+                thread.exit_code = rewind.main(*args, **kwargs)
             except SystemExit as e:
                 thread.exit_code = e.code
             else:
@@ -490,7 +490,7 @@ class _LogbookThread(threading.Thread):
                 # exit code 0
                 thread.exit_code = 0
         super(_LogbookThread, self).__init__(target=exitcode_runner,
-                                             name="test-logbook",
+                                             name="test-rewind",
                                              args=(cmdline_args,))
         self._exit_addr = exit_addr
 
@@ -517,8 +517,8 @@ class TestLogbookReplication(unittest.TestCase):
     def setUp(self):
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
-        self.logbook.start()
+        self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind.start()
 
         self.context = zmq.Context(3)
 
@@ -585,10 +585,10 @@ class TestLogbookReplication(unittest.TestCase):
         self.transmitter.close()
         self.receiver.close()
 
-        self.assertTrue(self.logbook.isAlive(),
-                        "Did logbook crash? Not running.")
-        self.logbook.stop(self.context)
-        self.assertFalse(self.logbook.isAlive(),
+        self.assertTrue(self.rewind.isAlive(),
+                        "Did rewind crash? Not running.")
+        self.rewind.stop(self.context)
+        self.assertFalse(self.rewind.isAlive(),
                          "Logbook should not have been running. It was.")
 
         self.context.term()
@@ -598,8 +598,8 @@ class TestLogbookQuerying(unittest.TestCase):
     def setUp(self):
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.logbook = _LogbookThread(args, 'tcp://127.0.0.1:8090')
-        self.logbook.start()
+        self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind.start()
 
         self.context = zmq.Context(3)
 
@@ -666,10 +666,10 @@ class TestLogbookQuerying(unittest.TestCase):
     def tearDown(self):
         self.query_socket.close()
 
-        self.assertTrue(self.logbook.isAlive(),
-                        "Did logbook crash? Not running.")
-        self.logbook.stop(self.context)
-        self.assertFalse(self.logbook.isAlive(),
+        self.assertTrue(self.rewind.isAlive(),
+                        "Did rewind crash? Not running.")
+        self.rewind.stop(self.context)
+        self.assertFalse(self.rewind.isAlive(),
                          "Logbook should not have been running. It was.")
 
         self.context.term()
@@ -691,7 +691,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister = keyvalpersister
 
     def _open_persister(self):
-        return logbook.KeyValuePersister(self.keyvalfile)
+        return rewind.KeyValuePersister(self.keyvalfile)
 
     def tearDown(self):
         if self.keyvalpersister:
@@ -721,7 +721,7 @@ class TestKeyValuePersister(unittest.TestCase):
                       ("key", "multiline\nvalue")]
         for key, val in faulty_kvs:
             setter = lambda: self.keyvalpersister.__setitem__(key, val)
-            self.assertRaises(logbook.KeyValuePersister.InsertError, setter)
+            self.assertRaises(rewind.KeyValuePersister.InsertError, setter)
 
     def testAppendingKeyContainingDelimiter(self):
         self._assert_delimieter_key_exception()
@@ -787,4 +787,4 @@ class TestKeyValuePersister(unittest.TestCase):
         randomfile.close()
         self.assertFalse(os.path.exists(randomfile.name),
                          "Expected file to not exist.")
-        logbook.KeyValuePersister(randomfile.name)
+        rewind.KeyValuePersister(randomfile.name)
