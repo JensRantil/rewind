@@ -18,7 +18,7 @@ import rewind.eventstores as eventstores
 logger = logging.getLogger(__name__)
 
 
-class IdGenerator:
+class _IdGenerator:
     """Generates unique strings."""
     def __init__(self, key_exists=lambda key: False):
         self.key_exists = key_exists
@@ -52,7 +52,7 @@ class LogBookRunner(object):
         assert isinstance(exit_message, bytes)
         self.exit_message = exit_message
 
-        self.id_generator = IdGenerator(key_exists=lambda key:
+        self.id_generator = _IdGenerator(key_exists=lambda key:
                                         eventstore.key_exists(key))
 
         # Initialize poll set
