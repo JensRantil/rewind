@@ -164,8 +164,8 @@ def _zmq_context_context(*args):
 
 
 @contextlib.contextmanager
-def zmq_socket_context(context, socket_type, bind_endpoints,
-                       connect_endpoints):
+def _zmq_socket_context(context, socket_type, bind_endpoints,
+                        connect_endpoints):
     """A ZeroMQ socket context that both constructs a socket and closes it."""
     socket = context.socket(socket_type)
     try:
@@ -209,14 +209,16 @@ def run(args):
         eventstore = eventstores.InMemoryEventStore()
 
     with _zmq_context_context(3) as context, \
-            zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
-                               args.incoming_connect_endpoints) \
+            _zmq_socket_context(context, zmq.PULL,
+                                args.incoming_bind_endpoints,
+                                args.incoming_connect_endpoints) \
             as incoming_socket, \
-            zmq_socket_context(context, zmq.REP, args.query_bind_endpoints,
-                               args.query_connect_endpoints) \
+            _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints,
+                                args.query_connect_endpoints) \
             as query_socket, \
-            zmq_socket_context(context, zmq.PUB, args.streaming_bind_endpoints,
-                               args.streaming_connect_endpoints) \
+            _zmq_socket_context(context, zmq.PUB,
+                                args.streaming_bind_endpoints,
+                                args.streaming_connect_endpoints) \
             as streaming_socket:
         # Executing the program in the context of ZeroMQ context as well as
         # ZeroMQ sockets. Using with here to make sure are correctly closing
