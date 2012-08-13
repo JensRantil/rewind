@@ -389,7 +389,7 @@ class SQLiteEventStore(EventStore):
             checksum_persister[fname] = hasher.hexdigest()
 
 
-class _LogEventStore(EventStore):
+class LogEventStore(EventStore):
     def __init__(self, path):
         self._hasher = _initialize_hasher(path)
 
@@ -708,7 +708,7 @@ class SyncedRotationEventStores(EventStore):
 
         self._rotate_files_if_needed()
 
-        # Since I guess _LogEventStore is less mature codewise than
+        # Since I guess LogEventStore is less mature codewise than
         # SQLiteEventStore I am writing to that log file first. If something
         # fails we are not writing to SQLiteEventStore.
         for store in self.stores:

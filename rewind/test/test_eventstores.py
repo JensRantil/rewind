@@ -227,7 +227,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             if params['prefix'] == 'logdb':
                 factory = eventstores.SQLiteEventStore
             elif params['prefix'] == 'appendlog':
-                factory = eventstores._LogEventStore
+                factory = eventstores.LogEventStore
             else:
                 self.fail('Unrecognized prefix.')
             factory = mock.Mock(wraps=factory)
@@ -423,13 +423,13 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                                                     suffix='.log',
                                                     delete=False)
         self.tempfile.close()  # We are not to modify it directly
-        self.store = eventstores._LogEventStore(self.tempfile.name)
+        self.store = eventstores.LogEventStore(self.tempfile.name)
 
         self._populate_store()
 
     def testReopenWithClose(self):
         self.store.close()
-        self.store = eventstores._LogEventStore(self.tempfile.name)
+        self.store = eventstores.LogEventStore(self.tempfile.name)
         self.assertEqual(len(self.keys), len(self.vals),
                          "Keys and vals did not match in number.")
         self.assertEqual(len(self.store.get_events(),), len(self.keys))
@@ -440,7 +440,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
         self.assertRaises(eventstores.LogBookCorruptionError,
-                          eventstores._LogEventStore,
+                          eventstores.LogEventStore,
                           self.tempfile.name)
 
     def tearDown(self):

@@ -189,7 +189,7 @@ def run(args):
 
         logdir = os.path.join(args.datadir, 'appendlog')
         def log_creator(filename):
-            return eventstores._LogEventStore(filename)
+            return eventstores.LogEventStore(filename)
         rotated_log_estore = eventstores.RotatedEventStore(log_creator,
                                                            logdir,
                                                            'appendlog')
