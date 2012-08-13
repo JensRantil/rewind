@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def _get_checksum_persister(path):
     directory = os.path.dirname(path)
     checksum_fname = os.path.join(directory, "checksums.md5")
-    checksum_persister = KeyValuePersister(checksum_fname)
+    checksum_persister = _KeyValuePersister(checksum_fname)
     return checksum_persister
 
 
@@ -32,7 +32,7 @@ def _hashfile(afile, hasher, blocksize=65536):
         buf = afile.read(blocksize)
 
 
-class KeyValuePersister(collections.MutableMapping):
+class _KeyValuePersister(collections.MutableMapping):
     """A persisted append-only MutableMapping implementation."""
     _delimiter = " "
 
@@ -56,10 +56,10 @@ class KeyValuePersister(collections.MutableMapping):
         with open(filename, 'r') as f:
             for line in f:
                 line = line.strip("\r\n")
-                pieces = line.split(KeyValuePersister._delimiter)
+                pieces = line.split(_KeyValuePersister._delimiter)
                 if len(pieces) >= 2:
                     key = pieces[0]
-                    val = KeyValuePersister._delimiter.join(pieces[1:])
+                    val = _KeyValuePersister._delimiter.join(pieces[1:])
                     keyvals[key] = val
         return keyvals
 
@@ -72,7 +72,7 @@ class KeyValuePersister(collections.MutableMapping):
         """
         assert isinstance(filename, str)
         if os.path.exists(filename):
-            return KeyValuePersister._actually_populate_keyvals(filename)
+            return _KeyValuePersister._actually_populate_keyvals(filename)
         else:
             return {}
 
@@ -93,7 +93,7 @@ class KeyValuePersister(collections.MutableMapping):
         self._file = None
 
     def __delitem__(self, key):
-        raise NotImplementedError('KeyValuePersister is append only.')
+        raise NotImplementedError('_KeyValuePersister is append only.')
 
     def __getitem__(self, key):
         assert isinstance(key, str)
@@ -110,13 +110,13 @@ class KeyValuePersister(collections.MutableMapping):
         assert isinstance(val, str)
         if self._delimiter in key:
             msg = "Key contained delimiter: {0}".format(key)
-            raise KeyValuePersister.InsertError(msg)
+            raise _KeyValuePersister.InsertError(msg)
         if "\n" in key:
             msg = "Key must not contain any newline. It did: {0}"
-            raise KeyValuePersister.InsertError(msg.format(key))
+            raise _KeyValuePersister.InsertError(msg.format(key))
         if "\n" in val:
             msg = "Value must not contain any newline. It did: {0}"
-            raise KeyValuePersister.InsertError(msg.format(val))
+            raise _KeyValuePersister.InsertError(msg.format(val))
         if key in self._keyvals:
             self.close()
             oldval = self._keyvals[key]

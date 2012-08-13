@@ -28,7 +28,7 @@ class TestKeyValuePersister(unittest.TestCase):
         self.keyvalpersister = keyvalpersister
 
     def _open_persister(self):
-        return eventstores.KeyValuePersister(self.keyvalfile)
+        return eventstores._KeyValuePersister(self.keyvalfile)
 
     def tearDown(self):
         if self.keyvalpersister:
@@ -58,7 +58,7 @@ class TestKeyValuePersister(unittest.TestCase):
                       ("key", "multiline\nvalue")]
         for key, val in faulty_kvs:
             setter = lambda: self.keyvalpersister.__setitem__(key, val)
-            self.assertRaises(eventstores.KeyValuePersister.InsertError,
+            self.assertRaises(eventstores._KeyValuePersister.InsertError,
                               setter)
 
     def testAppendingKeyContainingDelimiter(self):
@@ -125,7 +125,7 @@ class TestKeyValuePersister(unittest.TestCase):
         randomfile.close()
         self.assertFalse(os.path.exists(randomfile.name),
                          "Expected file to not exist.")
-        eventstores.KeyValuePersister(randomfile.name)
+        eventstores._KeyValuePersister(randomfile.name)
 
 
 class _TestEventStore:
@@ -298,7 +298,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         md5filename = os.path.join(dirpath, 'checksums.md5')
         self.assertTrue(os.path.exists(md5filename))
 
-        checksums = eventstores.KeyValuePersister(md5filename)
+        checksums = eventstores._KeyValuePersister(md5filename)
         files = [fname for fname in os.listdir(dirpath) if
                  fname != 'checksums.md5']
         self.assertEqual(set(files), set(checksums.keys()))
