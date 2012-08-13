@@ -154,7 +154,7 @@ class _LogBookRunner(object):
 
 
 @contextlib.contextmanager
-def zmq_context_context(*args):
+def _zmq_context_context(*args):
     """A ZeroMQ context context that both constructs and terminates it."""
     context = zmq.Context(*args)
     try:
@@ -208,7 +208,7 @@ def run(args):
                     " See --datadir parameter for further info.")
         eventstore = eventstores.InMemoryEventStore()
 
-    with zmq_context_context(3) as context, \
+    with _zmq_context_context(3) as context, \
             zmq_socket_context(context, zmq.PULL, args.incoming_bind_endpoints,
                                args.incoming_connect_endpoints) \
             as incoming_socket, \
