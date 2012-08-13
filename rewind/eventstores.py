@@ -272,7 +272,7 @@ class InMemoryEventStore(EventStore):
         return key in self.keys
 
 
-class _SQLiteEventStore(EventStore):
+class SQLiteEventStore(EventStore):
     """Stores events in an sqlite database."""
     def __init__(self, path):
         fname = os.path.basename(path)
@@ -701,7 +701,7 @@ class SyncedRotationEventStores(EventStore):
         """See `EventStore.add_event(...)`."""
         if self.key_exists(key):
             # This check might actually also be done further up in the chain
-            # (read: _SQLiteEventStore). Could potentially be removed if it
+            # (read: SQLiteEventStore). Could potentially be removed if it
             # requires a lot of processor cycles.
             msg = "The key already existed: {0}".format(key)
             raise EventStore.EventKeyAlreadyExistError(msg)
@@ -709,8 +709,8 @@ class SyncedRotationEventStores(EventStore):
         self._rotate_files_if_needed()
 
         # Since I guess _LogEventStore is less mature codewise than
-        # _SQLiteEventStore I am writing to that log file first. If something
-        # fails we are not writing to _SQLiteEventStore.
+        # SQLiteEventStore I am writing to that log file first. If something
+        # fails we are not writing to SQLiteEventStore.
         for store in self.stores:
             store.add_event(key, event)
         self.count += 1

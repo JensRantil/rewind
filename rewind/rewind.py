@@ -183,7 +183,7 @@ def run(args):
     if args.datadir:
         dbdir = os.path.join(args.datadir, 'db')
         def db_creator(filename):
-            return eventstores._SQLiteEventStore(filename)
+            return eventstores.SQLiteEventStore(filename)
         rotated_db_estore = eventstores.RotatedEventStore(db_creator, dbdir,
                                                           'sqlite')
 

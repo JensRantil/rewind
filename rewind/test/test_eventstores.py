@@ -225,7 +225,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
 
         for params in self.rotated_estore_params:
             if params['prefix'] == 'logdb':
-                factory = eventstores._SQLiteEventStore
+                factory = eventstores.SQLiteEventStore
             elif params['prefix'] == 'appendlog':
                 factory = eventstores._LogEventStore
             else:
@@ -449,13 +449,13 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
 
 
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
-    """Test `_SQLiteEventStore`."""
+    """Test `SQLiteEventStore`."""
     def setUp(self):
         self.tempfile = tempfile.NamedTemporaryFile(prefix='test_rewind',
                                                     suffix='sqlite_evstore',
                                                     delete=False)
         self.tempfile.close()  # We are not to modify it directly
-        self.store = eventstores._SQLiteEventStore(self.tempfile.name)
+        self.store = eventstores.SQLiteEventStore(self.tempfile.name)
 
         self._populate_store()
 
@@ -467,18 +467,18 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
     def testReopenWithClose(self):
         self.store.close()
-        self.store = eventstores._SQLiteEventStore(self.tempfile.name)
+        self.store = eventstores.SQLiteEventStore(self.tempfile.name)
 
         # testCount does exactly the test we want to do. Reusing it.
         self.testCount()
 
     def testCorruptionCheckOnOpen(self):
-        """Asserting we identify corrupt `_SQLiteEventStore` files."""
+        """Asserting we identify corrupt `SQLiteEventStore` files."""
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
         self.assertRaises(eventstores.LogBookCorruptionError,
-                          eventstores._SQLiteEventStore,
+                          eventstores.SQLiteEventStore,
                           self.tempfile.name)
 
     def tearDown(self):
