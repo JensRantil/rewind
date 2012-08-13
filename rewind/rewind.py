@@ -36,7 +36,7 @@ class _IdGenerator:
         return key
 
 
-class LogBookRunner(object):
+class _LogBookRunner(object):
     """ Helper class for splitting the runnable part of Logbook into logical
         parts.
 
@@ -53,7 +53,7 @@ class LogBookRunner(object):
         self.exit_message = exit_message
 
         self.id_generator = _IdGenerator(key_exists=lambda key:
-                                        eventstore.key_exists(key))
+                                         eventstore.key_exists(key))
 
         # Initialize poll set
         self.poller = zmq.Poller()
@@ -223,8 +223,8 @@ def run(args):
         # things in the correct order, particularly also if we have an
         # exception or similar.
 
-        runner = LogBookRunner(eventstore, incoming_socket, query_socket,
-                               streaming_socket, args.exit_message.encode())
+        runner = _LogBookRunner(eventstore, incoming_socket, query_socket,
+                                streaming_socket, args.exit_message.encode())
         runner.run()
 
     return 0
