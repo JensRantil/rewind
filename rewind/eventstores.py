@@ -13,7 +13,7 @@ import os
 import sqlite3
 
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 # Utility functions and classes used by event stores
@@ -507,11 +507,11 @@ class RotatedEventStore(EventStore):
         # These needs to be specified before calling self._determine_batchno()
         self.dirpath = dirpath
         self.prefix = prefix
-        self.logger = logger.getChild(prefix)
+        self._logger = _logger.getChild(prefix)
 
         if not os.path.exists(dirpath):
-            self.logger.info('Creating rotated eventstore directory: %s',
-                             dirpath)
+            self._logger.info('Creating rotated eventstore directory: %s',
+                              dirpath)
             os.mkdir(dirpath)
             batchno = 0
         else:
@@ -534,10 +534,10 @@ class RotatedEventStore(EventStore):
         not_identified_files = [fname for fname in files
                                 if not fname.startswith(prefix + '.')]
         if not_identified_files:
-            self.logger.warn("The following files could not be identified"
-                             " (lacking prefix '%s'):", prefix)
+            self._logger.warn("The following files could not be identified"
+                              " (lacking prefix '%s'):", prefix)
             for not_identified_file in not_identified_files:
-                self.logger.warn(' * %s', not_identified_file)
+                self._logger.warn(' * %s', not_identified_file)
 
         if identified_files:
             nprefix = len(prefix) + 1
@@ -568,8 +568,8 @@ class RotatedEventStore(EventStore):
         This is done by calling `store.close()` on each store, bumping the
         batchno and reopening the stores using their factories.
         """
-        self.logger.info('Rotating data files. New batch number will be: %s',
-                         self.batchno + 1)
+        self._logger.info('Rotating data files. New batch number will be: %s',
+                          self.batchno + 1)
         self.estore.close()
         self.estore = None
         self.batchno += 1
@@ -677,9 +677,9 @@ class SyncedRotationEventStores(EventStore):
 
     def _rotate_files_if_needed(self):
         if self.count >= self.events_per_batch:
-            if logger.isEnabledFor(logging.DEBUG):
+            if _logger.isEnabledFor(logging.DEBUG):
                 msg = 'Rotating because number of events(=%s) exceeds %s.'
-                logger.debug(msg, self.count, self.events_per_batch)
+                _logger.debug(msg, self.count, self.events_per_batch)
             self._rotate_files()
 
     def _rotate_files(self):

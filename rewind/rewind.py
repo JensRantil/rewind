@@ -15,7 +15,7 @@ import zmq
 import rewind.eventstores as eventstores
 
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class _IdGenerator:
@@ -30,8 +30,8 @@ class _IdGenerator:
         """Generate a new string and return it."""
         key = self._propose_new_key()
         while self.key_exists(key):
-            logger.warning('Previous candidate was used.'
-                           ' Regenerating another...')
+            _logger.warning('Previous candidate was used.'
+                            ' Regenerating another...')
             key = self._propose_new_key()
         return key
 
@@ -120,8 +120,8 @@ class _LogBookRunner(object):
                 events = self.eventstore.get_events(fro if fro else None,
                                                     to if to else None)
             except eventstores.EventStore.EventKeyDoesNotExistError as e:
-                logger.exception("A client requested a key that does not"
-                                 " exist:")
+                _logger.exception("A client requested a key that does not"
+                                  " exist:")
                 self.query_socket.send(b"ERROR Key did not exist")
                 return True
 
@@ -204,8 +204,8 @@ def run(args):
 
         # TODO: Make sure event stores are correctly mirrored
     else:
-        logger.warn("Using InMemoryEventStore. Events are not persisted."
-                    " See --datadir parameter for further info.")
+        _logger.warn("Using InMemoryEventStore. Events are not persisted."
+                     " See --datadir parameter for further info.")
         eventstore = eventstores.InMemoryEventStore()
 
     with _zmq_context_context(3) as context, \
