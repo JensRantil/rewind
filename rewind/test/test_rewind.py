@@ -1,3 +1,4 @@
+"""Test overall Rewind execution."""
 from __future__ import print_function
 import contextlib
 import itertools
@@ -23,7 +24,9 @@ def _direct_stderr_to_stdout():
     """Context manager for wrapping tests that prints to stderr.
 
     Nosetests does not capture stderr.
+
     """
+
     real_stderr = sys.stderr
     sys.stderr = sys.stdout
     yield
@@ -31,18 +34,23 @@ def _direct_stderr_to_stdout():
 
 
 class TestCommandLineExecution(unittest.TestCase):
+
     """Tests various command line arguments for `rewind`."""
+
     def setUp(self):
+        """Prepare each command line execution test."""
         # See tearDown() why this one is defined
         self.rewind = None
 
     def tearDown(self):
+        """Making sure rewind is closed after each test."""
         if self.rewind and self.rewind.isAlive():
             # Making sure to close rewind if it has been defined
             self.rewind.stop()
             self.rewind = None
 
     def testAtLeastOneEndpointRequired(self):
+        """Asserting we fail if no endpoint is defined."""
         with _direct_stderr_to_stdout():
             rewind = _LogbookThread([])
             rewind.start()
@@ -51,6 +59,7 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertEqual(rewind.exit_code, 2)
 
     def testOnlyStreamingEndpointFails(self):
+        """Assert Rewind won't start with only streaming endpoint defined."""
         with _direct_stderr_to_stdout():
             rewind = _LogbookThread(['--streaming-bind-endpoint',
                                      'tcp://hello'])
@@ -60,6 +69,7 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertEqual(rewind.exit_code, 2)
 
     def testHelp(self):
+        """Testing commend line `--help` listing works."""
         with _direct_stderr_to_stdout():
             rewind = _LogbookThread(['--help'])
             rewind.start()
@@ -68,6 +78,7 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertEqual(rewind.exit_code, 0)
 
     def testStartingWithPersistence(self):
+        """Testing starting and stopping from command line."""
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
@@ -89,12 +100,15 @@ class TestCommandLineExecution(unittest.TestCase):
 
 
 class _LogbookThread(threading.Thread):
+
     """A thread that runs a rewind instance.
 
     While the thread is given command line arguments, Rewind is started as
     thread rather than external process. This makes it possible to check code
     coverage and track exit codes etc.
+
     """
+
     _EXIT_CODE = b'EXIT'
 
     def __init__(self, cmdline_args, exit_addr=None):
@@ -103,6 +117,7 @@ class _LogbookThread(threading.Thread):
         Parameters:
         cmdline_args -- command line arguments used to execute the rewind.
         exit_addr    -- the ZeroMQ address used to send the exit message to.
+
         """
         thread = self
 
@@ -143,10 +158,13 @@ class _LogbookThread(threading.Thread):
 
 class TestLogbookReplication(unittest.TestCase):
 
+    """Test high-level replication behaviour."""
+
     UUID_REGEXP = ("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-"
                    "[0-9a-f]{12}")
 
     def setUp(self):
+        """Starting a Rewind instance to test replication."""
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
@@ -170,6 +188,7 @@ class TestLogbookReplication(unittest.TestCase):
         self.transmitter.setsockopt(zmq.LINGER, 1000)
 
     def testBasicEventProxying(self):
+        """Asserting a single event is proxied."""
         eventid = b"abc12332fffgdgaab134432423"
         eventstring = b"THIS IS AN EVENT"
 
@@ -184,9 +203,10 @@ class TestLogbookReplication(unittest.TestCase):
         self.assertEqual(received_string, eventstring)
 
     def testProxyingABunchOfEvents(self):
-        """Tests that a bunch of incoming messages processed correctly.
+        """Testing that a bunch of incoming messages processed correctly.
 
         That is, they are all being proxied and in order.
+
         """
         NMESSAGES = 200
         messages = []
@@ -214,6 +234,7 @@ class TestLogbookReplication(unittest.TestCase):
                          "Found duplicate event id!")
 
     def tearDown(self):
+        """Shutting down Rewind test instance."""
         self.transmitter.close()
         self.receiver.close()
 
@@ -227,7 +248,11 @@ class TestLogbookReplication(unittest.TestCase):
 
 
 class TestLogbookQuerying(unittest.TestCase):
+
+    """Test high-level event querying behaviour."""
+
     def setUp(self):
+        """Start and populate a Rewind instance to test querying."""
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
@@ -262,6 +287,7 @@ class TestLogbookQuerying(unittest.TestCase):
         transmitter.close()
 
     def testSyncAllPastEvents(self):
+        """Test querying all events."""
         time.sleep(0.5)  # Max time to persist the messages
         allevents = [event[1] for event in self.querier.query()]
         self.assertEqual(allevents, self.sent)
@@ -269,6 +295,7 @@ class TestLogbookQuerying(unittest.TestCase):
         self.assertEqual(allevents, self.sent, "Elements don't match.")
 
     def testSyncEventsSince(self):
+        """Test querying events after a certain time."""
         time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         from_ = allevents[3][0]
@@ -276,6 +303,7 @@ class TestLogbookQuerying(unittest.TestCase):
         self.assertEqual([event[1] for event in allevents[4:]], events)
 
     def testSyncEventsBefore(self):
+        """Test querying events before a certain time."""
         time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         to = allevents[-3][0]
@@ -283,6 +311,7 @@ class TestLogbookQuerying(unittest.TestCase):
         self.assertEqual([event[1] for event in allevents[:-2]], events)
 
     def testSyncEventsBetween(self):
+        """Test querying events a slice of the events."""
         time.sleep(0.5)  # Max time to persist the messages
         allevents = [event for event in self.querier.query()]
         from_ = allevents[3][0]
@@ -291,11 +320,13 @@ class TestLogbookQuerying(unittest.TestCase):
         self.assertEqual([event[1] for event in allevents[4:-2]], events)
 
     def testSyncNontExistentEvent(self):
+        """Test when querying for non-existent event id."""
         result = self.querier.query(from_="non-exist")
         self.assertRaises(communicators.EventQuerier.QueryException,
                           list, result)
 
     def tearDown(self):
+        """Close Rewind test instance."""
         self.query_socket.close()
 
         self.assertTrue(self.rewind.isAlive(),

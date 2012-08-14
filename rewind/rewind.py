@@ -1,3 +1,4 @@
+"""Main executable of Rewind."""
 from __future__ import print_function
 from __future__ import absolute_import
 import argparse
@@ -19,7 +20,9 @@ _logger = logging.getLogger(__name__)
 
 
 class _IdGenerator:
+
     """Generates unique strings."""
+
     def __init__(self, key_exists=lambda key: False):
         self.key_exists = key_exists
 
@@ -37,11 +40,16 @@ class _IdGenerator:
 
 
 class _LogBookRunner(object):
-    """ Helper class for splitting the runnable part of Logbook into logical
-        parts.
+
+    """Message juggler.
+
+    Receives events, stores and proxies them. Also handles queries and responds
+    to them.
 
     The state of the class is the state necessary to execute the application.
+
     """
+
     def __init__(self, eventstore, incoming_socket, query_socket,
                  streaming_socket, exit_message=None):
         """Constructor."""
@@ -61,8 +69,10 @@ class _LogBookRunner(object):
         self.poller.register(query_socket, zmq.POLLIN)
 
     def run(self):
-        """ Actually run the program infinitely, or until an exit message is
-            received.
+        """Main loop for `LogBookRunner`.
+
+        Runs the program infinitely, or until an exit message is received.
+
         """
         while self._handle_one_message():
             pass
@@ -71,6 +81,10 @@ class _LogBookRunner(object):
         """Handle one single incoming message on any socket.
 
         This is the inner loop of the main application loop.
+
+        Returns True if further messages should be received, False otherwise
+        (it should quit, that is).
+
         """
         socks = dict(self.poller.poll())
 
@@ -82,7 +96,12 @@ class _LogBookRunner(object):
             return self._handle_query()
 
     def _handle_incoming_event(self):
-        """Handle an incoming event."""
+        """Handle an incoming event.
+
+        Returns True if further messages should be received, False otherwise
+        (it should quit, that is).
+
+        """
         eventstr = self.incoming_socket.recv()
 
         if self.exit_message and eventstr == self.exit_message:
@@ -105,7 +124,12 @@ class _LogBookRunner(object):
         return True
 
     def _handle_query(self):
-        """Handle an event query."""
+        """Handle an event query.
+
+        Returns True if further messages should be received, False otherwise
+        (it should quit, that is).
+
+        """
         requesttype = self.query_socket.recv()
         if requesttype == b"QUERY":
             assert self.query_socket.getsockopt(zmq.RCVMORE)
@@ -179,7 +203,18 @@ def _zmq_socket_context(context, socket_type, bind_endpoints,
 
 
 def run(args):
-    """Actually execute the program."""
+    """Actually execute the program.
+
+    Calling this method can be done from tests to simulate executing the
+    application from command line.
+
+    Parameters:
+    args    -- a list of command line parameters (omitting the initial program
+               list item given in `sys.argv`.
+
+    returns -- a proposed exit code for the application.
+
+    """
     if args.datadir:
         dbdir = os.path.join(args.datadir, 'db')
         def db_creator(filename):
@@ -238,7 +273,10 @@ def main(argv=None):
     Parses input and calls run() for the real work.
 
     Parameters:
-    argv -- sys.argv arguments. Can be set for testing purposes.
+    argv    -- sys.argv arguments. Can be set for testing purposes.
+
+    returns -- the proposed exit code for the program.
+
     """
     parser = argparse.ArgumentParser(
         description='Event storage and event proxy.'

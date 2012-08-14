@@ -3,6 +3,7 @@
 Every event stores is derived from `EventStore`.
 
 """
+
 import base64
 import collections
 import contextlib
@@ -33,7 +34,9 @@ def _hashfile(afile, hasher, blocksize=65536):
 
 
 class _KeyValuePersister(collections.MutableMapping):
+
     """A persisted append-only MutableMapping implementation."""
+
     _delimiter = " "
 
     class InsertError(Exception):
@@ -47,9 +50,10 @@ class _KeyValuePersister(collections.MutableMapping):
 
     @staticmethod
     def _actually_populate_keyvals(filename):
-        """Actually read the key/values from a file.
+        """Return a dictionary containing the key/values read from filename.
 
         Raises IOError if the file does not exit etcetera.
+
         """
         assert isinstance(filename, str)
         keyvals = {}
@@ -69,6 +73,7 @@ class _KeyValuePersister(collections.MutableMapping):
 
         returns -- a dictionary with key/values, or empty dictionary if the
                    file does not exist.
+
         """
         assert isinstance(filename, str)
         if os.path.exists(filename):
@@ -88,6 +93,7 @@ class _KeyValuePersister(collections.MutableMapping):
         """Close the persister.
 
         Important to do to not have file descriptor leakages.
+
         """
         self._file.close()
         self._file = None
@@ -154,37 +160,48 @@ def _initialize_hasher(path):
 # Errors thrown by event stores
 
 class LogBookKeyError(KeyError):
+
     """Exception thrown if a requested key did not exist."""
+
     pass
 
 
 class LogBookEventOrderError(IndexError):
+
     """Exception thrown if requested key is in wrong (chronological) order.
 
     That is if from-key was generated after to-key.
+
     """
+
     pass
 
 
 class LogBookCorruptionError(Exception):
+
     """Exception raised when data seem corrupt."""
+
     pass
 
 
 # Event stores
 
 class EventStore(object):
+
     """Stores events and keeps track of their order.
 
     This class is here mostly for documentation. It shows which methods in
     general needs to be implemented by its supclasses.
+
     """
+
     class EventKeyAlreadyExistError(LogBookKeyError):
         """Raised when trying to add an event with a key already seen.
 
         While it is recommended that `EventStore`s raise this exception, they
         might not always. Maybe an `EventStore` can't hold most keys in memory
         etcetera.
+
         """
         pass
 
@@ -193,11 +210,12 @@ class EventStore(object):
         pass
 
     def add_event(self, key, event):
-        """Adds an event with key to the store.
+        """Add event and corresponding key to the store.
 
         Parameters:
         key   -- the key used to reference the event. The key must be a string.
         event -- the serialized event. The event must be a string or data.
+
         """
         raise NotImplementedError("Should be implemented by subclass.")
 
@@ -209,7 +227,9 @@ class EventStore(object):
                    `from_`. Note that this does not include `from_`.
         to      -- receive all events seen before the event with event id
                    `to`. Note that this also includes `to`.
+
         returns -- an iterable of (event id, eventdata) tuples.
+
         """
         raise NotImplementedError("Should be implemented by subclass.")
 
@@ -219,6 +239,7 @@ class EventStore(object):
         Depending on the implementation of the event store, this method might
         not always look through the whole key space. In fact, it might not even
         look at all.
+
         """
         raise NotImplementedError("Should be implemented by subclass.")
 
@@ -226,18 +247,21 @@ class EventStore(object):
         """Close the store.
 
         May be overridden if necessary.
+
         """
         pass
 
 
 class InMemoryEventStore(EventStore):
+
     """Stores events in-memory and keeps track of their order."""
+
     def __init__(self):
         self.keys = []
         self.events = {}
 
     def add_event(self, key, event):
-        """See `EventStore.add_event(...)`."""
+        """Add an event and its corresponding key to the store."""
         if key in self.keys or key in self.events:
             raise EventStore.EventKeyAlreadyExistError(
                 "The key already existed: {0}".format(key))
@@ -246,7 +270,20 @@ class InMemoryEventStore(EventStore):
         self.events[key] = event
 
     def get_events(self, from_=None, to=None):
-        """See `EventStore.add_get_events(...)`."""
+        """Query a slice of the events.
+
+        Events are always returned in the order the were added.
+
+        Parameters:
+        from_   -- if not None, return only events added after the event with
+                   id `from_`. If None, return from the start of history.
+        to      -- if not None, return only events added before, and
+                   including, the event with event id `to`. If None, return up
+                   to, and including, the last added event.
+
+        returns -- an iterable of (event id, eventdata) tuples.
+
+        """
         if from_ and (from_ not in self.keys or from_ not in self.events):
             raise EventStore.EventKeyDoesNotExistError(
                 "Could not find the from_ key: {0}".format(from_))
@@ -268,12 +305,18 @@ class InMemoryEventStore(EventStore):
                 for key in self.keys[fromindex:toindex])
 
     def key_exists(self, key):
-        """See `EventStore.key_exists(...)`."""
+        """Check whether a key exists in the event store.
+
+        Returns True if it does, False otherwise.
+
+        """
         return key in self.keys
 
 
 class SQLiteEventStore(EventStore):
+
     """Stores events in an sqlite database."""
+
     def __init__(self, path):
         fname = os.path.basename(path)
         checksum_persister = _get_checksum_persister(path)
@@ -306,14 +349,27 @@ class SQLiteEventStore(EventStore):
         self._path = path
 
     def add_event(self, key, event):
-        """See `EventStore.add_event(...)`."""
+        """Add an event and its corresponding key to the store."""
         assert isinstance(key, str)
         assert isinstance(event, bytes)
         self.conn.execute('INSERT INTO events(uuid,event) VALUES (?,?)',
                           (key, event.decode('utf-8')))
 
     def get_events(self, from_=None, to=None):
-        """See `EventStore.get_events(...)`."""
+        """Query a slice of the events.
+
+        Events are always returned in the order the were added.
+
+        Parameters:
+        from_   -- if not None, return only events added after the event with
+                   id `from_`. If None, return from the start of history.
+        to      -- if not None, return only events added before, and
+                   including, the event with event id `to`. If None, return up
+                   to, and including, the last added event.
+
+        returns -- an iterable of (event id, eventdata) tuples.
+
+        """
         assert from_ is None or isinstance(from_, str)
         assert to is None or isinstance(to, str)
         if from_ and not self.key_exists(from_):
@@ -350,7 +406,11 @@ class SQLiteEventStore(EventStore):
             return res[0]
 
     def key_exists(self, key):
-        """See `EventStore.key_exists(...)`."""
+        """Check whether a key exists in the event store.
+
+        Returns True if it does, False otherwise.
+
+        """
         assert isinstance(key, str)
         cursor = self.conn.cursor()
         with contextlib.closing(cursor):
@@ -377,6 +437,7 @@ class SQLiteEventStore(EventStore):
         """Close the event store.
 
         Important to close to not have any file descriptor leakages.
+
         """
         if self.conn:
             self.conn.close()
@@ -390,6 +451,13 @@ class SQLiteEventStore(EventStore):
 
 
 class LogEventStore(EventStore):
+
+    """File-backed append only ascii event store.
+
+    Each event is persisted, one line per event, to a file.
+
+    """
+
     def __init__(self, path):
         self._hasher = _initialize_hasher(path)
 
@@ -412,6 +480,7 @@ class LogEventStore(EventStore):
             self.f = None
 
     def add_event(self, key, event):
+        """Add an event and its corresponding key to the store."""
         assert isinstance(key, str)
         assert isinstance(event, bytes)
         if all([char.isalnum() or char == '-' for char in key]):
@@ -452,10 +521,22 @@ class LogEventStore(EventStore):
         return eventstrs
 
     def get_events(self, from_=None, to=None):
-        """Get events.
+        """Query a slice of the events.
+
+        Events are always returned in the order the were added.
 
         Does never throw LogBookEventOrderError because it is hard to detect
         from an append-only file.
+
+        Parameters:
+        from_   -- if not None, return only events added after the event with
+                   id `from_`. If None, return from the start of history.
+        to      -- if not None, return only events added before, and
+                   including, the event with event id `to`. If None, return up
+                   to, and including, the last added event.
+
+        returns -- an iterable of (event id, eventdata) tuples.
+
         """
         assert from_ is None or isinstance(from_, str)
         assert to is None or isinstance(to, str)
@@ -476,9 +557,13 @@ class LogEventStore(EventStore):
         return False
 
     def key_exists(self, key):
-        """Checks for key existence.
+        """Check if key has previously been added to this store.
 
-        Makes a linear search and is very slow.
+        This function makes a linear search through the log file and is very
+        slow.
+
+        Returns True if the event has previously been added, False otherwise.
+
         """
         assert isinstance(key, str)
         self._close()
@@ -488,7 +573,7 @@ class LogEventStore(EventStore):
             self._open()
 
     def close(self):
-        """Persists a checksum and closes the file."""
+        """Persist a checksum and close the file."""
         fname = os.path.basename(self._path)
         checksum_persister = _get_checksum_persister(self._path)
         with contextlib.closing(checksum_persister):
@@ -498,11 +583,14 @@ class LogEventStore(EventStore):
 
 
 class RotatedEventStore(EventStore):
+
     """An event store that stores events in rotated files.
 
     Calls to `EventStore` specific methods are simply proxied to the event
     store created by the factory specified as an argument to the constructor.
+
     """
+
     def __init__(self, estore_factory, dirpath, prefix):
         # These needs to be specified before calling self._determine_batchno()
         self.dirpath = dirpath
@@ -558,6 +646,9 @@ class RotatedEventStore(EventStore):
 
         Parameters:
         batchno -- batch number for the rotated database.
+
+        Returns the constructed path as a string.
+
         """
         return os.path.join(self.dirpath,
                             "{0}.{1}".format(self.prefix, batchno))
@@ -567,6 +658,7 @@ class RotatedEventStore(EventStore):
 
         This is done by calling `store.close()` on each store, bumping the
         batchno and reopening the stores using their factories.
+
         """
         self._logger.info('Rotating data files. New batch number will be: %s',
                           self.batchno + 1)
@@ -576,7 +668,7 @@ class RotatedEventStore(EventStore):
         self.estore = self._open_event_store()
 
     def add_event(self, key, event):
-        """See `EventStore.add_event(...)`."""
+        """Add an event and its corresponding key to the store."""
         self.estore.add_event(key, event)
 
     def _find_batch_containing_event(self, uuid):
@@ -584,7 +676,9 @@ class RotatedEventStore(EventStore):
 
         Parameters:
         uuid    -- the event uuid to search for.
+
         returns -- a batch number, or None if not found.
+
         """
         if self.estore.key_exists(uuid):
             # Reusing already opened DB if possible
@@ -600,12 +694,22 @@ class RotatedEventStore(EventStore):
         return None
 
     def get_events(self, from_=None, to=None):
-        """Query events.
+        """Query a slice of the events.
+
+        Events are always returned in the order the were added.
 
         It also queries older event archives until it finds the event UUIDs
         necessary.
 
-        See `EventStore.add_event(...)` for details.
+        Parameters:
+        from_   -- if not None, return only events added after the event with
+                   id `from_`. If None, return from the start of history.
+        to      -- if not None, return only events added before, and
+                   including, the event with event id `to`. If None, return up
+                   to, and including, the last added event.
+
+        returns -- an iterable of (event id, eventdata) tuples.
+
         """
         if from_:
             frombatchno = self._find_batch_containing_event(from_)
@@ -638,7 +742,11 @@ class RotatedEventStore(EventStore):
                     yield eventtuple
 
     def key_exists(self, key):
-        """Checks whether the key exists in the current event store."""
+        """Check whether key exists has been added to this event store.
+
+        Returns True if it has, False otherwise.
+
+        """
         return self.estore.key_exists(key)
 
     def close(self):
@@ -648,11 +756,14 @@ class RotatedEventStore(EventStore):
 
 
 class SyncedRotationEventStores(EventStore):
+
     """Wraps multiple `RotatedEventStore` event stores.
 
     Rotation is done at the same time for all event stores to make sure they
     are kept in sync.
+
     """
+
     def __init__(self, events_per_batch=25000):
         """Construct a persisted event store that is stored on disk.
 
@@ -661,6 +772,7 @@ class SyncedRotationEventStores(EventStore):
                             the files. Defaults to 25000. That number is
                             arbitrary and should probably be configures so that
                             files do not grow out of proportion.
+
         """
         assert isinstance(events_per_batch, int), \
             "Events per batch must be integer."
@@ -698,7 +810,7 @@ class SyncedRotationEventStores(EventStore):
         self._close_event_stores()
 
     def add_event(self, key, event):
-        """See `EventStore.add_event(...)`."""
+        """Add an event and its corresponding key to the store."""
         if self.key_exists(key):
             # This check might actually also be done further up in the chain
             # (read: SQLiteEventStore). Could potentially be removed if it
@@ -716,18 +828,32 @@ class SyncedRotationEventStores(EventStore):
         self.count += 1
 
     def key_exists(self, key):
-        """Checks for event key existence.
+        """Check if key has has previously been added to this event store..
 
         This check is actually only done to the last batch to make is really
         fast. Therefor, it's mostly to make sure we have a sane UUID generator.
+
+        Return True if it has been added before, False otherwise.
+
         """
         return self.stores[0].key_exists(key)
 
     def get_events(self, from_=None, to=None):
-        """Query events.
+        """Query a slice of the events.
+
+        Events are always returned in the order the were added.
 
         The events are queried from the event store that was added first using
         `add_rotated_store(...)`.
 
-        See `EventStore.get_event(...)`."""
+        Parameters:
+        from_   -- if not None, return only events added after the event with
+                   if `from_`. If None, return from the start of history.
+        to      -- if not None, return only events added before, and
+                   including, the event with event id `to`. If None, return up
+                   to, and including, the last added event.
+
+        returns -- an iterable of (event id, eventdata) tuples.
+
+        """
         return self.stores[0].get_events(from_, to)
