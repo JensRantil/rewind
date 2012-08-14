@@ -43,3 +43,18 @@ class TestCodeFormat(unittest.TestCase):
             for error in errors:
                 print(error)
         self.assertEquals(len(errors), 0)
+
+    def testLogbookIsGone(self):
+        """Make sure we no longer use the name "logbook".
+
+        "logbook" was the early working project name that later became
+        "rewind".
+
+        """
+        errmsg = "'{0}' contained 'logbook' although it shouldn't"
+        for pyfile in self._pyfiles:
+            if pyfile == 'rewind/test/test_code.py':
+                continue
+            with open(pyfile) as f:
+                pythoncode = f.read()
+            assert "logbook" not in pythoncode.lower(), errmsg.format(pyfile)
