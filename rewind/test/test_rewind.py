@@ -52,7 +52,7 @@ class TestCommandLineExecution(unittest.TestCase):
     def testAtLeastOneEndpointRequired(self):
         """Asserting we fail if no endpoint is defined."""
         with _direct_stderr_to_stdout():
-            rewind = _LogbookThread([])
+            rewind = _RewindRunnerThread([])
             rewind.start()
             rewind.join(2)
         self.assertFalse(rewind.isAlive())
@@ -61,8 +61,8 @@ class TestCommandLineExecution(unittest.TestCase):
     def testOnlyStreamingEndpointFails(self):
         """Assert Rewind won't start with only streaming endpoint defined."""
         with _direct_stderr_to_stdout():
-            rewind = _LogbookThread(['--streaming-bind-endpoint',
-                                     'tcp://hello'])
+            rewind = _RewindRunnerThread(['--streaming-bind-endpoint',
+                                          'tcp://hello'])
             rewind.start()
             rewind.join(2)
         self.assertFalse(rewind.isAlive())
@@ -71,7 +71,7 @@ class TestCommandLineExecution(unittest.TestCase):
     def testHelp(self):
         """Testing commend line `--help` listing works."""
         with _direct_stderr_to_stdout():
-            rewind = _LogbookThread(['--help'])
+            rewind = _RewindRunnerThread(['--help'])
             rewind.start()
             rewind.join(2)
         self.assertFalse(rewind.isAlive())
@@ -86,7 +86,7 @@ class TestCommandLineExecution(unittest.TestCase):
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
         print(" ".join(args))
-        self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
         time.sleep(3)
@@ -99,7 +99,7 @@ class TestCommandLineExecution(unittest.TestCase):
         shutil.rmtree(datapath)
 
 
-class _LogbookThread(threading.Thread):
+class _RewindRunnerThread(threading.Thread):
 
     """A thread that runs a rewind instance.
 
@@ -122,9 +122,9 @@ class _LogbookThread(threading.Thread):
         thread = self
 
         assert '--exit-codeword' not in cmdline_args, \
-               "'--exit-codeword' is added by _LogbookThread. Not elsewhere"
+            "'--exit-codeword' is added by _RewindRunnerThread. Not elsewhere"
         cmdline_args = (['--exit-codeword',
-                         _LogbookThread._EXIT_CODE.decode()] +
+                         _RewindRunnerThread._EXIT_CODE.decode()] +
                         cmdline_args)
 
         def exitcode_runner(*args, **kwargs):
@@ -136,9 +136,9 @@ class _LogbookThread(threading.Thread):
                 # If SystemExit is never thrown Python would have exitted with
                 # exit code 0
                 thread.exit_code = 0
-        super(_LogbookThread, self).__init__(target=exitcode_runner,
-                                             name="test-rewind",
-                                             args=(cmdline_args,))
+        super(_RewindRunnerThread, self).__init__(target=exitcode_runner,
+                                                  name="test-rewind",
+                                                  args=(cmdline_args,))
         self._exit_addr = exit_addr
 
     def stop(self, context=None):
@@ -150,13 +150,13 @@ class _LogbookThread(threading.Thread):
         socket = context.socket(zmq.PUSH)
         socket.setsockopt(zmq.LINGER, 1000)
         socket.connect(self._exit_addr)
-        socket.send(_LogbookThread._EXIT_CODE)
+        socket.send(_RewindRunnerThread._EXIT_CODE)
         time.sleep(0.5)  # Acceptable exit time
         assert not self.isAlive()
         socket.close()
 
 
-class TestLogbookReplication(unittest.TestCase):
+class TestReplication(unittest.TestCase):
 
     """Test high-level replication behaviour."""
 
@@ -167,7 +167,7 @@ class TestLogbookReplication(unittest.TestCase):
         """Starting a Rewind instance to test replication."""
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
         self.context = zmq.Context(3)
@@ -242,12 +242,12 @@ class TestLogbookReplication(unittest.TestCase):
                         "Did rewind crash? Not running.")
         self.rewind.stop(self.context)
         self.assertFalse(self.rewind.isAlive(),
-                         "Logbook should not have been running. It was.")
+                         "Rewind should not have been running. It was.")
 
         self.context.term()
 
 
-class TestLogbookQuerying(unittest.TestCase):
+class TestQuerying(unittest.TestCase):
 
     """Test high-level event querying behaviour."""
 
@@ -255,7 +255,7 @@ class TestLogbookQuerying(unittest.TestCase):
         """Start and populate a Rewind instance to test querying."""
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.rewind = _LogbookThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
         self.context = zmq.Context(3)
@@ -333,6 +333,6 @@ class TestLogbookQuerying(unittest.TestCase):
                         "Did rewind crash? Not running.")
         self.rewind.stop(self.context)
         self.assertFalse(self.rewind.isAlive(),
-                         "Logbook should not have been running. It was.")
+                         "Rewind should not have been running. It was.")
 
         self.context.term()

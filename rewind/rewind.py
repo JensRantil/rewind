@@ -39,7 +39,7 @@ class _IdGenerator:
         return key
 
 
-class _LogBookRunner(object):
+class _RewindRunner(object):
 
     """Message juggler.
 
@@ -69,7 +69,7 @@ class _LogBookRunner(object):
         self.poller.register(query_socket, zmq.POLLIN)
 
     def run(self):
-        """Main loop for `LogBookRunner`.
+        """Main loop for `_RewindRunner`.
 
         Runs the program infinitely, or until an exit message is received.
 
@@ -260,8 +260,8 @@ def run(args):
         # things in the correct order, particularly also if we have an
         # exception or similar.
 
-        runner = _LogBookRunner(eventstore, incoming_socket, query_socket,
-                                streaming_socket, args.exit_message.encode())
+        runner = _RewindRunner(eventstore, incoming_socket, query_socket,
+                               streaming_socket, args.exit_message.encode())
         runner.run()
 
     return 0

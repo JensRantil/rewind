@@ -498,7 +498,7 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
-        self.assertRaises(eventstores.LogBookCorruptionError,
+        self.assertRaises(eventstores.CorruptionError,
                           eventstores.LogEventStore,
                           self.tempfile.name)
 
@@ -542,7 +542,7 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
         self.store.close()
         with open(self.tempfile.name, 'wb') as f:
             f.write(b"Random data %%%!!!??")
-        self.assertRaises(eventstores.LogBookCorruptionError,
+        self.assertRaises(eventstores.CorruptionError,
                           eventstores.SQLiteEventStore,
                           self.tempfile.name)
 
