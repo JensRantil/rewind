@@ -10,6 +10,11 @@ class TestCodeFormat(unittest.TestCase):
 
     """Tests that asserts code quality."""
 
+    @classmethod
+    def setUpClass(cls):
+        """Create a list of all Python files in Rewind."""
+        cls._pyfiles = cls._get_all_pyfiles()
+
     @staticmethod
     def _get_all_pyfiles():
         """Return a list of all Python files in Rewind."""
@@ -23,8 +28,7 @@ class TestCodeFormat(unittest.TestCase):
     def testPep8Conformance(self):
         """Test that we conform to PEP8."""
         pep8style = pep8.StyleGuide()
-        pyfiles = self._get_all_pyfiles()
-        result = pep8style.check_files(pyfiles)
+        result = pep8style.check_files(self._pyfiles)
 
         # Currently two E301:s fail. I find those checks to be
         # buggy and will report them to the pep8 project on github.
@@ -33,9 +37,7 @@ class TestCodeFormat(unittest.TestCase):
 
     def testPep257Conformance(self):
         """Test that we conform to PEP257."""
-        pyfiles = self._get_all_pyfiles()
-
-        errors = pep257.check_files(pyfiles)
+        errors = pep257.check_files(self._pyfiles)
         if errors:
             print("There were errors:")
             for error in errors:
