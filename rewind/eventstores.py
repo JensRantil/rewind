@@ -159,14 +159,14 @@ def _initialize_hasher(path):
 
 # Errors thrown by event stores
 
-class LogBookKeyError(KeyError):
+class EventStoreError(KeyError):
 
     """Exception thrown if a requested key did not exist."""
 
     pass
 
 
-class LogBookEventOrderError(IndexError):
+class EventOrderError(IndexError):
 
     """Exception thrown if requested key is in wrong (chronological) order.
 
@@ -177,7 +177,7 @@ class LogBookEventOrderError(IndexError):
     pass
 
 
-class LogBookCorruptionError(Exception):
+class CorruptionError(Exception):
 
     """Exception raised when data seem corrupt."""
 
@@ -195,7 +195,7 @@ class EventStore(object):
 
     """
 
-    class EventKeyAlreadyExistError(LogBookKeyError):
+    class EventKeyAlreadyExistError(EventStoreError):
         """Raised when trying to add an event with a key already seen.
 
         While it is recommended that `EventStore`s raise this exception, they
@@ -205,7 +205,7 @@ class EventStore(object):
         """
         pass
 
-    class EventKeyDoesNotExistError(LogBookKeyError):
+    class EventKeyDoesNotExistError(EventStoreError):
         """Raised when querying with a key that does not exist."""
         pass
 
@@ -300,7 +300,7 @@ class InMemoryEventStore(EventStore):
                    " Keys: ({0}, {1})"
                    " Indices: ({2}, {3})").format(from_, to, fromindex,
                                                   toindex)
-            raise LogBookEventOrderError(msg)
+            raise EventOrderError(msg)
         return ((key, self.events[key])
                 for key in self.keys[fromindex:toindex])
 
@@ -324,7 +324,7 @@ class SQLiteEventStore(EventStore):
         if (fname in checksum_persister and
                 checksum_persister[fname] != hasher.hexdigest()):
             msg = "The file '{0}' had wrong md5 checksum.".format(path)
-            raise LogBookCorruptionError(msg)
+            raise CorruptionError(msg)
 
         # isolation_level=None => autocommit mode
         self.conn = sqlite3.connect(path, isolation_level=None)
@@ -383,8 +383,8 @@ class SQLiteEventStore(EventStore):
         fromindex = self._get_eventid(from_) + 1 if from_ else 0
         toindex = self._get_eventid(to) if to else None
         if from_ and to and fromindex > toindex:
-            raise LogBookEventOrderError("'to' happened cronologically before"
-                                         " 'from_'.")
+            raise EventOrderError("'to' happened cronologically before"
+                                  " 'from_'.")
 
         if toindex:
             sql = ('SELECT uuid, event FROM events '
@@ -466,7 +466,7 @@ class LogEventStore(EventStore):
         if (fname in checksum_persister and
                 checksum_persister[fname] != self._hasher.hexdigest()):
             msg = "The file '{0}' was had wrong md5.".format(path)
-            raise LogBookCorruptionError(msg)
+            raise CorruptionError(msg)
 
         self._path = path
         self._open()
@@ -525,7 +525,7 @@ class LogEventStore(EventStore):
 
         Events are always returned in the order the were added.
 
-        Does never throw LogBookEventOrderError because it is hard to detect
+        Does never throw EventOrderError because it is hard to detect
         from an append-only file.
 
         Parameters:
