@@ -19,6 +19,7 @@ setup(
         'rewind',
         'rewind.test'
     ],
+    description='Rewind is a (CQRS) event store that talks ZeroMQ.',
     long_description=open('DESCRIPTION.rst').read(),
     classifiers=[
         "Development Status :: 4 - Beta",
