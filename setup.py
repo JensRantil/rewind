@@ -10,7 +10,7 @@ if py_version <= (2, 6):
 
 setup(
     name='rewind',
-    version='0.1',
+    version='0.1.1',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='GNU AGPL, version 3',
@@ -19,6 +19,7 @@ setup(
         'rewind',
         'rewind.test'
     ],
+    description='Rewind is a (CQRS) event store that talks ZeroMQ.',
     long_description=open('DESCRIPTION.rst').read(),
     classifiers=[
         "Development Status :: 4 - Beta",
