@@ -24,7 +24,7 @@ write and the read side. The event store takes care of three things:
 * being a hub/broker replicating all events from the write to the read
   side of things.
   
-* it allows fast querying of events so that different parts of the system
+* allowing fast querying of events so that different parts of the system
   can be synced back on track and new components can be brought back in
   play.
 
