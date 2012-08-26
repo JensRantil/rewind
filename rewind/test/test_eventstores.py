@@ -61,6 +61,7 @@ class TestKeyValuePersister(unittest.TestCase):
             self.keyvalpersister.close()
             self.keyvalpersister = None
         self.namedfile.close()
+        os.unlink(self.keyvalfile)
         self.keyvalfile = None
         self.namedfile = None
 
