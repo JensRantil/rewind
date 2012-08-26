@@ -177,9 +177,9 @@ class TestKeyValuePersister(unittest.TestCase):
         # Poor man's flush
         self.keyvalpersister.close()
         self.keyvalpersister = self._open_persister()
-        os.chmod(self.keyvalfile, 0400)
+        os.chmod(self.keyvalfile, 0o400)
 
-        testkey = iter(self.keyvals).next()
+        testkey = next(iter(self.keyvals))
 
         def modify_existing_key():
             self.keyvalpersister[testkey] = "45934857984"
