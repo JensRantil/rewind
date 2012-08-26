@@ -225,8 +225,8 @@ improvements, test improvements and other feature additions are all
 welcome. Please issue pull requests or create an issue if you'd like to
 discuss it on Github.
 
-Why the name `rewind`?
-=============
+Why the name "Rewind"?
+======================
 Pick and choose:
 
 * Rewind can look at what happened in the past and replay the events
