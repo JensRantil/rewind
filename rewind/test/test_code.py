@@ -58,3 +58,12 @@ class TestCodeFormat(unittest.TestCase):
             with open(pyfile) as f:
                 pythoncode = f.read()
             assert "logbook" not in pythoncode.lower(), errmsg.format(pyfile)
+
+    def test_license_header(self):
+        """Testing all source files contains license header."""
+        needle = "GNU Affero General Public License"
+        for pyfile in self._pyfiles:
+            with open(pyfile) as f:
+                haystack = f.read()
+                msg = "{0} did not contain license header"
+                self.assertTrue(needle in haystack, msg.format(pyfile))
