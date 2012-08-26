@@ -169,6 +169,30 @@ class TestKeyValuePersister(unittest.TestCase):
                          "Expected file to not exist.")
         eventstores._KeyValuePersister(randomfile.name)
 
+    def testErrorWriting(self):
+        """Test rewritten values with errors are not changed."""
+        self._write_keyvals()
+        self._assertValuesWereWritten()
+
+        # Poor man's flush
+        self.keyvalpersister.close()
+        self.keyvalpersister = self._open_persister()
+        os.chmod(self.keyvalfile, 0400)
+
+        testkey = iter(self.keyvals).next()
+
+        def modify_existing_key():
+            self.keyvalpersister[testkey] = "45934857984"
+        self.assertRaises(IOError, modify_existing_key)
+
+        # Assert we did not change anything
+        self._assertValuesWereWritten()
+
+        # Important - otherwise tearDown will fail because we did not have
+        # permissions to reopen the persister since we changed the file write
+        # permissions.
+        self.keyvalpersister = None
+
 
 class _TestEventStore:
 
