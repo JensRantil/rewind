@@ -179,7 +179,7 @@ beforehand.
 This is how you check out the `rewind` library into a virtual environment::
 
     cd <your development directory>
-    virtualenv --note-site-packages rewind
+    virtualenv --no-site-packages rewind
     cd rewind
     git clone http://<rewind GIT URL> src
 
