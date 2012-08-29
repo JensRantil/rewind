@@ -10,7 +10,7 @@ if py_version <= (2, 6):
 
 setup(
     name='rewind',
-    version='0.1.1',
+    version='0.1.2',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='GNU AGPL, version 3',
