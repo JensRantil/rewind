@@ -39,7 +39,7 @@ setup(
         'coverage==3.5.1',
     ],
     install_requires=[
-        "pyzmq==2.2.0",
+        "pyzmq-static==2.1.11.2",
     ],
     tests_require=[
         "mock==0.8",
