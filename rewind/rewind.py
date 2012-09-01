@@ -73,7 +73,7 @@ class _RewindRunner(object):
         self.incoming_socket = incoming_socket
         self.query_socket = query_socket
         self.streaming_socket = streaming_socket
-        assert isinstance(exit_message, bytes)
+        assert exit_message is None or isinstance(exit_message, bytes)
         self.exit_message = exit_message
 
         self.id_generator = _IdGenerator(key_exists=lambda key:
@@ -277,7 +277,9 @@ def run(args):
         # exception or similar.
 
         runner = _RewindRunner(eventstore, incoming_socket, query_socket,
-                               streaming_socket, args.exit_message.encode())
+                               streaming_socket, (args.exit_message.encode()
+                                                  if args.exit_message
+                                                  else None))
         runner.run()
 
     return 0
