@@ -154,7 +154,7 @@ class _RewindRunner(object):
             to = self.query_socket.recv().decode()
             assert not self.query_socket.getsockopt(zmq.RCVMORE)
 
-            logging.debug("Incoming query: (from, to)=(%s, %s)", fro, to)
+            _logger.debug("Incoming query: (from, to)=(%s, %s)", fro, to)
 
             try:
                 events = self.eventstore.get_events(fro if fro else None,
