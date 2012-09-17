@@ -43,12 +43,11 @@ Installing
 
 PyPi
 ----
-Rewind `exists on PyPi`_. Currently it is in early alpha and no package
-has yet been published. There exist a `roadmap to bring it to v. 0.1`_.
-Pull requests are welcome!
+Rewind `exists on PyPi`_ and can be downloaded by issuing::
+
+    $ pip install rewind
 
 .. _exists on PyPi: http://pypi.python.org/pypi/rewind/
-.. _roadmap to bring it to v. 0.1: https://github.com/JensRantil/rewind/issues?milestone=1&state=open
 
 Manual install
 --------------
