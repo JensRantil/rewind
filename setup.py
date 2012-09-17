@@ -17,7 +17,9 @@ setup(
     url='https://github.com/JensRantil/rewind',
     packages=[
         'rewind',
-        'rewind.test'
+        'rewind.clients',
+        'rewind.server',
+        'rewind.server.test',
     ],
     description='Rewind is a (CQRS) event store that talks ZeroMQ.',
     long_description=open('DESCRIPTION.rst').read(),
@@ -50,7 +52,7 @@ setup(
     test_suite="rewind.test",
     entry_points={
         'console_scripts': [
-            'rewind = rewind.rewind:main',
+            'rewind = rewind.server.rewind:main',
         ]
     },
 )

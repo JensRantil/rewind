@@ -29,7 +29,7 @@ import uuid
 
 import zmq
 
-import rewind.eventstores as eventstores
+import rewind.server.eventstores as eventstores
 
 
 _logger = logging.getLogger(__name__)
