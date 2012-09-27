@@ -17,7 +17,6 @@ setup(
     url='https://github.com/JensRantil/rewind',
     packages=[
         'rewind',
-        'rewind.clients',
         'rewind.server',
         'rewind.server.test',
     ],

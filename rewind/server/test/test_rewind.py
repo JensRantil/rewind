@@ -31,7 +31,7 @@ import re
 
 import zmq
 
-import rewind.clients as clients
+import rewind.communicators as clients
 import rewind.server.rewind as rewind
 
 
