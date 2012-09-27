@@ -69,7 +69,7 @@ class TestCodeFormat(unittest.TestCase):
         """
         errmsg = "'{0}' contained 'logbook' although it shouldn't"
         for pyfile in self._pyfiles:
-            if pyfile == 'rewind/test/test_code.py':
+            if pyfile.endswith('/test_code.py'):
                 continue
             with open(pyfile) as f:
                 pythoncode = f.read()

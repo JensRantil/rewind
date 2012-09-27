@@ -31,8 +31,8 @@ import re
 
 import zmq
 
-import rewind.communicators as communicators
-import rewind.rewind as rewind
+import rewind.communicators as clients
+import rewind.server.rewind as rewind
 
 
 @contextlib.contextmanager
@@ -278,7 +278,7 @@ class TestQuerying(unittest.TestCase):
 
         self.query_socket = self.context.socket(zmq.REQ)
         self.query_socket.connect('tcp://127.0.0.1:8091')
-        self.querier = communicators.EventQuerier(self.query_socket)
+        self.querier = clients.EventQuerier(self.query_socket)
 
         transmitter = self.context.socket(zmq.PUSH)
         transmitter.connect('tcp://127.0.0.1:8090')
@@ -338,7 +338,7 @@ class TestQuerying(unittest.TestCase):
     def testSyncNontExistentEvent(self):
         """Test when querying for non-existent event id."""
         result = self.querier.query(from_="non-exist")
-        self.assertRaises(communicators.EventQuerier.QueryException,
+        self.assertRaises(clients.EventQuerier.QueryException,
                           list, result)
 
     def tearDown(self):

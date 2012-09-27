@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Rewind -- a (CQRS) event store server and client.
+"""Rewind -- a (CQRS) event store server.
 
 See https://www.github.com/JensRantil/rewind for more information.
 """
