@@ -20,6 +20,7 @@ setup(
         'rewind.server',
         'rewind.server.test',
     ],
+    namespace_packages=["rewind"],
     description='Rewind is a (CQRS) event store that talks ZeroMQ.',
     long_description=open('DESCRIPTION.rst').read(),
     classifiers=[
