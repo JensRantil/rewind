@@ -1,3 +1,19 @@
+# Rewind is an event store server written in Python that talks ZeroMQ.
+# Copyright (C) 2012  Jens Rantil
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """Tests of event stores."""
 from __future__ import print_function
 import contextlib
@@ -11,8 +27,8 @@ import unittest
 
 import mock
 
-import rewind.eventstores as eventstores
-import rewind.rewind as rewind
+import rewind.server.eventstores as eventstores
+import rewind.server.rewind as rewind
 
 
 class TestKeyValuePersister(unittest.TestCase):
@@ -45,6 +61,7 @@ class TestKeyValuePersister(unittest.TestCase):
             self.keyvalpersister.close()
             self.keyvalpersister = None
         self.namedfile.close()
+        os.unlink(self.keyvalfile)
         self.keyvalfile = None
         self.namedfile = None
 
@@ -151,6 +168,30 @@ class TestKeyValuePersister(unittest.TestCase):
         self.assertFalse(os.path.exists(randomfile.name),
                          "Expected file to not exist.")
         eventstores._KeyValuePersister(randomfile.name)
+
+    def testErrorWriting(self):
+        """Test rewritten values with errors are not changed."""
+        self._write_keyvals()
+        self._assertValuesWereWritten()
+
+        # Poor man's flush
+        self.keyvalpersister.close()
+        self.keyvalpersister = self._open_persister()
+        os.chmod(self.keyvalfile, 0o400)
+
+        testkey = next(iter(self.keyvals))
+
+        def modify_existing_key():
+            self.keyvalpersister[testkey] = "45934857984"
+        self.assertRaises(IOError, modify_existing_key)
+
+        # Assert we did not change anything
+        self._assertValuesWereWritten()
+
+        # Important - otherwise tearDown will fail because we did not have
+        # permissions to reopen the persister since we changed the file write
+        # permissions.
+        self.keyvalpersister = None
 
 
 class _TestEventStore:

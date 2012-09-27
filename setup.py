@@ -10,14 +10,15 @@ if py_version <= (2, 6):
 
 setup(
     name='rewind',
-    version='0.1.2',
+    version='0.1.3',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='GNU AGPL, version 3',
     url='https://github.com/JensRantil/rewind',
     packages=[
         'rewind',
-        'rewind.test'
+        'rewind.server',
+        'rewind.server.test',
     ],
     description='Rewind is a (CQRS) event store that talks ZeroMQ.',
     long_description=open('DESCRIPTION.rst').read(),
@@ -29,17 +30,18 @@ setup(
         "Natural Language :: English",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3.2",
         "Topic :: Database :: Database Engines/Servers",
         "Topic :: Software Development :: Object Brokering",
         "Topic :: System :: Distributed Computing",
     ],
-    keywords="CQRS, event sourcing",
+    keywords="CQRS, event sourcing, ZeroMQ",
     setup_requires=[
         'nose>=1.0',
         'coverage==3.5.1',
     ],
     install_requires=[
-        "pyzmq==2.2.0",
+        "pyzmq-static==2.1.11.2",
     ],
     tests_require=[
         "mock==0.8",
@@ -49,7 +51,7 @@ setup(
     test_suite="rewind.test",
     entry_points={
         'console_scripts': [
-            'rewind = rewind.rewind:main',
+            'rewind = rewind.server.rewind:main',
         ]
     },
 )

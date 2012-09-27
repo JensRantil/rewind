@@ -43,12 +43,11 @@ Installing
 
 PyPi
 ----
-Rewind `exists on PyPi`_. Currently it is in early alpha and no package
-has yet been published. There exist a `roadmap to bring it to v. 0.1`_.
-Pull requests are welcome!
+Rewind `exists on PyPi`_ and can be downloaded by issuing::
+
+    $ pip install rewind
 
 .. _exists on PyPi: http://pypi.python.org/pypi/rewind/
-.. _roadmap to bring it to v. 0.1: https://github.com/JensRantil/rewind/issues?milestone=1&state=open
 
 Manual install
 --------------
@@ -179,7 +178,7 @@ beforehand.
 This is how you check out the `rewind` library into a virtual environment::
 
     cd <your development directory>
-    virtualenv --note-site-packages rewind
+    virtualenv --no-site-packages rewind
     cd rewind
     git clone http://<rewind GIT URL> src
 
@@ -225,8 +224,8 @@ improvements, test improvements and other feature additions are all
 welcome. Please issue pull requests or create an issue if you'd like to
 discuss it on Github.
 
-Why the name `rewind`?
-=============
+Why the name "Rewind"?
+======================
 Pick and choose:
 
 * Rewind can look at what happened in the past and replay the events
@@ -237,4 +236,11 @@ Pick and choose:
 
 Author
 ======
+
 This package has been developed by Jens Rantil <jens.rantil@gmail.com>.
+You can also reach me through snailmail at::
+
+    Jens Rantil
+    Lilla Södergatan 6A
+    22353 Lund
+    SWEDEN

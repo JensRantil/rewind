@@ -1,3 +1,19 @@
+# Rewind is an event store server written in Python that talks ZeroMQ.
+# Copyright (C) 2012  Jens Rantil
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """Test overall Rewind execution."""
 from __future__ import print_function
 import contextlib
@@ -15,8 +31,8 @@ import re
 
 import zmq
 
-import rewind.communicators as communicators
-import rewind.rewind as rewind
+import rewind.communicators as clients
+import rewind.server.rewind as rewind
 
 
 @contextlib.contextmanager
@@ -262,7 +278,7 @@ class TestQuerying(unittest.TestCase):
 
         self.query_socket = self.context.socket(zmq.REQ)
         self.query_socket.connect('tcp://127.0.0.1:8091')
-        self.querier = communicators.EventQuerier(self.query_socket)
+        self.querier = clients.EventQuerier(self.query_socket)
 
         transmitter = self.context.socket(zmq.PUSH)
         transmitter.connect('tcp://127.0.0.1:8090')
@@ -322,7 +338,7 @@ class TestQuerying(unittest.TestCase):
     def testSyncNontExistentEvent(self):
         """Test when querying for non-existent event id."""
         result = self.querier.query(from_="non-exist")
-        self.assertRaises(communicators.EventQuerier.QueryException,
+        self.assertRaises(clients.EventQuerier.QueryException,
                           list, result)
 
     def tearDown(self):

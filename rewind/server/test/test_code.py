@@ -1,3 +1,19 @@
+# Rewind is an event store server written in Python that talks ZeroMQ.
+# Copyright (C) 2012  Jens Rantil
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """Test code format and coding standards."""
 from __future__ import print_function
 import os
@@ -53,8 +69,17 @@ class TestCodeFormat(unittest.TestCase):
         """
         errmsg = "'{0}' contained 'logbook' although it shouldn't"
         for pyfile in self._pyfiles:
-            if pyfile == 'rewind/test/test_code.py':
+            if pyfile.endswith('/test_code.py'):
                 continue
             with open(pyfile) as f:
                 pythoncode = f.read()
             assert "logbook" not in pythoncode.lower(), errmsg.format(pyfile)
+
+    def test_license_header(self):
+        """Testing all source files contains license header."""
+        needle = "GNU Affero General Public License"
+        for pyfile in self._pyfiles:
+            with open(pyfile) as f:
+                haystack = f.read()
+                msg = "{0} did not contain license header"
+                self.assertTrue(needle in haystack, msg.format(pyfile))
