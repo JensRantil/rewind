@@ -49,7 +49,7 @@ setup(
         "pep8==1.3.3",
         "pep257==0.2.0",
     ],
-    test_suite="rewind.test",
+    test_suite="rewind.server.test",
     entry_points={
         'console_scripts': [
             'rewind = rewind.server.rewind:main',
