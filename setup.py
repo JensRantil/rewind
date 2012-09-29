@@ -48,6 +48,7 @@ setup(
         "mock==0.8",
         "pep8==1.3.3",
         "pep257==0.2.0",
+        "rewind-client==0.1.0",
     ],
     test_suite="rewind.server.test",
     entry_points={
