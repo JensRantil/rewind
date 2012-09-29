@@ -66,6 +66,12 @@ create a virtual environment.
 
 Talking to `rewind`
 ===================
+There is a preexisting Python client package, `rewind-client`_. If you
+are not writing a new client you might want to skip the following
+section below.
+
+.. _rewind-client: https://github.com/JensRantil/rewind-client
+
 Rewind has three different wire protocols. Each is using ZeroMQ as low
 level transport protocol. Wire protocol has one single ZeroMQ endpoint
 in Rewind:
