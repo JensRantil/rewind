@@ -1,7 +1,7 @@
 # Requirements that is being used by Travis CI
-pyzmq==2.2.0
+pyzmq==2.2.0.1
 mock==0.8
 coverage==3.5.1
 pep8==1.3.3
 pep257==0.2.0
-rewind-client==0.1.1
+rewind-client==0.1.2

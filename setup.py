@@ -42,13 +42,13 @@ setup(
         'coverage==3.5.1',
     ],
     install_requires=[
-        "pyzmq-static==2.1.11.2",
+        "pyzmq==2.2.0.1",
     ],
     tests_require=[
         "mock==0.8",
         "pep8==1.3.3",
         "pep257==0.2.0",
-        "rewind-client==0.1.1",
+        "rewind-client==0.1.2",
     ],
     test_suite="rewind.server.test",
     entry_points={
