@@ -45,11 +45,8 @@ class TestCodeFormat(unittest.TestCase):
         """Test that we conform to PEP8."""
         pep8style = pep8.StyleGuide()
         result = pep8style.check_files(self._pyfiles)
-
-        # Currently two E301:s fail. I find those checks to be
-        # buggy and will report them to the pep8 project on github.
-        self.assertEqual(result.total_errors, 2,
-                         "Found code syntax errors (and warnings).")
+        self.assertEqual(result.total_errors, 0,
+                         "Found code syntax errors (and warnings). Was")
 
     def testPep257Conformance(self):
         """Test that we conform to PEP257."""
