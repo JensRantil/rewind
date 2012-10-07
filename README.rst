@@ -111,7 +111,12 @@ consists of two parts:
 
 1. The event ID. The client should view this as a series of bytes.
 
-2. The event content. This is the exact same bytes that were
+2. The previous event ID. This information is useful to know whether
+   ZeroMQ high-water mark kicked in while syncing up a client while
+   querying for older events. If streaming has just begun, this message
+   part can be empty and can thus be ignored.
+
+3. The event content. This is the exact same bytes that were
    correspondingly sent to the receiving socket.
 
 Querying events
