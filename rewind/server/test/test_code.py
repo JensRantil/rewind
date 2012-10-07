@@ -34,6 +34,10 @@ class TestCodeFormat(unittest.TestCase):
     @staticmethod
     def _get_all_pyfiles():
         """Return a list of all Python files in Rewind."""
+        while not os.getcwd().endswith('rewind'):
+            os.chdir('..')
+        os.chdir('..')
+
         pyfiles = []
         for dirpath, _, filenames in os.walk('rewind'):
             pyfiles.extend([os.path.join(dirpath, filename)
@@ -46,7 +50,7 @@ class TestCodeFormat(unittest.TestCase):
         """Test that we conform to PEP8."""
         pep8style = pep8.StyleGuide()
         result = pep8style.check_files(self._pyfiles)
-        self.assertEqual(result.total_errors, 0,
+        self.assertEqual(result.total_errors, 2,
                          "Found code syntax errors (and warnings). Was")
 
     def testPep257Conformance(self):

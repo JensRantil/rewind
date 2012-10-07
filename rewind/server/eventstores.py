@@ -52,9 +52,10 @@ def _hashfile(afile, hasher, blocksize=65536):
 class _KeyValuePersister(collections.MutableMapping):
 
     """A persisted append-only MutableMapping implementation.
-    
+
     The class holds all key/value pairs in memory. Thus, it is not appropriate
     for bigger datasets.
+
     """
 
     _delimiter = " "
