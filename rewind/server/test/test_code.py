@@ -39,6 +39,7 @@ class TestCodeFormat(unittest.TestCase):
             pyfiles.extend([os.path.join(dirpath, filename)
                             for filename in filenames
                             if filename.endswith('.py')])
+        assert len(pyfiles) > 0
         return pyfiles
 
     def testPep8Conformance(self):
