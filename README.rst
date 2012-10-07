@@ -109,7 +109,7 @@ Every message received automatically gets assigned a unique event id
 below). Each sent message from the streaming is a multipart message that
 consists of two parts:
 
-1. The event ID. The client should view this is a series of bytes.
+1. The event ID. The client should view this as a series of bytes.
 
 2. The event content. This is the exact same bytes that were
    correspondingly sent to the receiving socket.
