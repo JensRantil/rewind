@@ -75,6 +75,7 @@ class _RewindRunner(object):
         self.streaming_socket = streaming_socket
         assert exit_message is None or isinstance(exit_message, bytes)
         self.exit_message = exit_message
+        self.oldid = ''
 
         self.id_generator = _IdGenerator(key_exists=lambda key:
                                          eventstore.key_exists(key))
@@ -135,7 +136,10 @@ class _RewindRunner(object):
         self.eventstore.add_event(newid, eventstr)
 
         self.streaming_socket.send(newid.encode(), zmq.SNDMORE)
+        self.streaming_socket.send(self.oldid.encode(), zmq.SNDMORE)
         self.streaming_socket.send(eventstr)
+
+        self.oldid = newid
 
         return True
 

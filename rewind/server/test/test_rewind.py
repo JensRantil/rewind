@@ -212,10 +212,13 @@ class TestReplication(unittest.TestCase):
 
         received_id = self.receiver.recv().decode()
         self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
+        received_previd = self.receiver.recv().decode()
+        self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
         received_string = self.receiver.recv()
         self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
 
         self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
+        self.assertEqual(received_previd, '')
         self.assertEqual(received_string, eventstring)
 
     def testProxyingABunchOfEvents(self):
@@ -236,8 +239,11 @@ class TestReplication(unittest.TestCase):
 
         # Receiving and asserting correct messages
         eventids = []
+        previd = ''
         for msg in messages:
             received_id = self.receiver.recv().decode()
+            self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
+            received_previd = self.receiver.recv().decode()
             self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
             received_string = self.receiver.recv()
             self.assertFalse(self.receiver.getsockopt(zmq.RCVMORE))
@@ -245,6 +251,9 @@ class TestReplication(unittest.TestCase):
             self.assertIsNotNone(re.match(self.UUID_REGEXP, received_id))
             eventids.append(received_id)
             self.assertEqual(received_string, msg)
+
+            self.assertEqual(received_previd, previd)
+            previd = received_id
 
         self.assertEqual(len(set(eventids)), len(eventids),
                          "Found duplicate event id!")
