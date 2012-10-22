@@ -16,7 +16,7 @@ system into two parts:
 * A *read side* that listens to incoming events from the write side. The
   read side is optimized for fast reads.
 
-A core concept in CQRS is the *event store* which sits inbetween the
+A common concept in CQRS is a *event store* which sits inbetween the
 write and the read side. The event store takes care of three things:
 
 * persisting all events to disk.
