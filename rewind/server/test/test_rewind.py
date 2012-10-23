@@ -287,7 +287,6 @@ class TestQuerying(unittest.TestCase):
 
         self.query_socket = self.context.socket(zmq.REQ)
         self.query_socket.connect('tcp://127.0.0.1:8091')
-        self.querier = clients.EventQuerier(self.query_socket)
 
         transmitter = self.context.socket(zmq.PUSH)
         transmitter.connect('tcp://127.0.0.1:8090')
@@ -314,7 +313,8 @@ class TestQuerying(unittest.TestCase):
     def testSyncAllPastEvents(self):
         """Test querying all events."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event[1] for event in self.querier.query()]
+        allevents = [event[1]
+                     for event in clients.query_events(self.query_socket)]
         self.assertEqual(allevents, self.sent)
 
         self.assertEqual(allevents, self.sent, "Elements don't match.")
@@ -322,32 +322,39 @@ class TestQuerying(unittest.TestCase):
     def testSyncEventsSince(self):
         """Test querying events after a certain time."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event for event in self.querier.query()]
+        allevents = [event
+                     for event in clients.query_events(self.query_socket)]
         from_ = allevents[3][0]
-        events = [event[1] for event in self.querier.query(from_=from_)]
+        events = [event[1] for event in clients.query_events(self.query_socket,
+                                                             from_=from_)]
         self.assertEqual([event[1] for event in allevents[4:]], events)
 
     def testSyncEventsBefore(self):
         """Test querying events before a certain time."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event for event in self.querier.query()]
+        allevents = [event
+                     for event in clients.query_events(self.query_socket)]
         to = allevents[-3][0]
-        events = [event[1] for event in self.querier.query(to=to)]
+        events = [event[1] for event in clients.query_events(self.query_socket,
+                                                             to=to)]
         self.assertEqual([event[1] for event in allevents[:-2]], events)
 
     def testSyncEventsBetween(self):
         """Test querying events a slice of the events."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event for event in self.querier.query()]
+        allevents = [event
+                     for event in clients.query_events(self.query_socket)]
         from_ = allevents[3][0]
         to = allevents[-3][0]
-        events = [event[1] for event in self.querier.query(from_=from_, to=to)]
+        events = [event[1] for event in clients.query_events(self.query_socket,
+                                                             from_=from_,
+                                                             to=to)]
         self.assertEqual([event[1] for event in allevents[4:-2]], events)
 
     def testSyncNontExistentEvent(self):
         """Test when querying for non-existent event id."""
-        result = self.querier.query(from_="non-exist")
-        self.assertRaises(clients.EventQuerier.QueryException,
+        result = clients.query_events(self.query_socket, from_=b"non-exist")
+        self.assertRaises(clients.QueryException,
                           list, result)
 
     def tearDown(self):
