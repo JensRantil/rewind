@@ -28,7 +28,6 @@ import re
 
 import zmq
 
-import rewind.client as clients
 import rewind.server.rewind as rewind
 
 
