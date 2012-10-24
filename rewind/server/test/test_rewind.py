@@ -294,10 +294,6 @@ class TestQuerying(unittest.TestCase):
         ids = [uuid.uuid1().hex for i in range(200)]
         self.assertEqual(len(ids), len(set(ids)), 'There were duplicate IDs.'
                          ' Maybe the UUID1 algorithm is flawed?')
-        users = [uuid.uuid1().hex for i in range(30)]
-        self.assertEqual(len(users), len(set(users)),
-                         'There were duplicate users.'
-                         ' Maybe the UUID1 algorithm is flawed?')
 
         self.sent = []
         for id in ids:
