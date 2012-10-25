@@ -17,6 +17,8 @@
 """Test overall Rewind execution."""
 from __future__ import print_function
 import contextlib
+import itertools
+import re
 import shutil
 import sys
 import tempfile
@@ -24,11 +26,9 @@ import threading
 import time
 import unittest
 import uuid
-import re
 
 import zmq
 
-import rewind.client as clients
 import rewind.server.rewind as rewind
 
 
@@ -275,6 +275,17 @@ class TestQuerying(unittest.TestCase):
 
     def setUp(self):
         """Start and populate a Rewind instance to test querying."""
+
+        # Generate artifical events. Doing this at the top of the function so
+        # that ZeroMQ gets disappointed that we don't close sockets and stuff
+        # if things fails.
+        NEVENTS = 200
+        events = [uuid.uuid1().hex.encode() for i in range(NEVENTS)]
+        self.assertTrue(isinstance(events[0], bytes), type(events[0]))
+        self.assertEqual(len(events), len(set(events)),
+                         'There were duplicate IDs.'
+                         ' Maybe the UUID1 algorithm is flawed?')
+
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
@@ -292,67 +303,172 @@ class TestQuerying(unittest.TestCase):
         # Could be removed if this test works as expected
         transmitter.setsockopt(zmq.LINGER, 1000)
 
-        ids = [uuid.uuid1().hex for i in range(200)]
-        self.assertEqual(len(ids), len(set(ids)), 'There were duplicate IDs.'
-                         ' Maybe the UUID1 algorithm is flawed?')
-        users = [uuid.uuid1().hex for i in range(30)]
-        self.assertEqual(len(users), len(set(users)),
-                         'There were duplicate users.'
-                         ' Maybe the UUID1 algorithm is flawed?')
-
         self.sent = []
-        for id in ids:
-            eventstr = "Event with id '{0}'".format(id).encode()
-            transmitter.send(eventstr)
-            self.sent.append(eventstr)
+        for event in events:
+            # Generating events
+            transmitter.send(event)
+            self.sent.append(event)
         transmitter.close()
 
-    def testSyncAllPastEvents(self):
+    def _fetchAllEvents(self):
+        """Fetch all events previously put into Rewind.
+
+        Returns a list of events.
+
+        """
+        from_ = b''
+        to = b''
+        result = []
+        while True:
+            events, capped = self._fetchEvents(from_, to)
+            result.extend(events)
+            if not capped:
+                break
+            else:
+                from_ = events[-1][0]
+        return result
+
+    def _fetchEvents(self, from_=b'', to=b''):
+        """Make a ZeroMQ request/query for events.
+
+        Returns a tuple consisting of:
+         * a list of event tuple. Could have become capped by the event store
+         * if too many events were to be returned. Each tuple consists of:
+          * event id (type: bytes)
+          * event data (type: bytes)
+         * a boolean all events queried for were returned, or whether the
+           result was capped. True if all were returned, False if capped.
+
+        """
+        self.assertTrue(isinstance(from_, bytes), type(from_))
+        self.assertTrue(isinstance(to, bytes), type(to))
+
+        self.querysock.send(b'QUERY', zmq.SNDMORE)  # Command
+        self.querysock.send(from_, zmq.SNDMORE)     # From
+        self.querysock.send(to)                     # To
+
+        more = True    # Whether more events can be fetched from the response
+        capped = True  # Whether events were capped
+        events = []
+        while more:
+            data = self.querysock.recv()
+            self.assertFalse(data.startswith(b'ERROR'))
+
+            if data == b'END':
+                self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
+                capped = False
+            else:
+                eventid = data
+                self.assertTrue(isinstance(eventid, bytes), type(eventid))
+                self.assertTrue(self.querysock.getsockopt(zmq.RCVMORE))
+                eventdata = self.querysock.recv()
+                self.assertFalse(eventdata.startswith(b'ERROR'))
+                events.append((eventid, eventdata))
+
+            if not self.querysock.getsockopt(zmq.RCVMORE):
+                more = False
+
+        return events, capped
+
+    def testSyncAllPastEventsNonCapped(self):
         """Test querying all events."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event[1]
-                     for event in clients.query_events(self.querysock)]
-        self.assertEqual(allevents, self.sent)
 
-        self.assertEqual(allevents, self.sent, "Elements don't match.")
+        events = self._fetchAllEvents()
+        events = [ev[1] for ev in events]
+
+        self.assertEqual(self.sent, events)
+
+    def testSyncAllPastEventsCapped(self):
+        """Test querying all events."""
+        time.sleep(0.5)  # Max time to persist the messages
+
+        events, capped = self._fetchEvents()
+        events = [ev[1] for ev in events]
+
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertTrue(len(self.sent) > len(events))
+
+        self.assertEqual(self.sent[:len(events)], events)
 
     def testSyncEventsSince(self):
         """Test querying events after a certain time."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event
-                     for event in clients.query_events(self.querysock)]
-        from_ = allevents[3][0]
-        events = [event[1] for event in clients.query_events(self.querysock,
-                                                             from_=from_)]
-        self.assertEqual([event[1] for event in allevents[4:]], events)
 
-    def testSyncEventsBefore(self):
-        """Test querying events before a certain time."""
-        time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event
-                     for event in clients.query_events(self.querysock)]
-        to = allevents[-3][0]
-        events = [event[1] for event in clients.query_events(self.querysock,
-                                                             to=to)]
-        self.assertEqual([event[1] for event in allevents[:-2]], events)
+        allevents = self._fetchAllEvents()
+        from_ = allevents[3][0]
+        events, capped = self._fetchEvents(from_=from_)
+        events = [ev[1] for ev in events]
 
-    def testSyncEventsBetween(self):
-        """Test querying events a slice of the events."""
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertTrue(len(self.sent) - 3 > len(events))
+
+        self.assertEqual(self.sent[4:len(events) + 4], events)
+
+    def testSyncEventsBeforeWithCap(self):
+        """Test querying events before a certain time. Result is capped."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event
-                     for event in clients.query_events(self.querysock)]
+
+        allevents = self._fetchAllEvents()
+        to = allevents[-3][0]
+        events, capped = self._fetchEvents(to=to)
+        events = [ev[1] for ev in events]
+
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertEqual(100, len(events),
+                         "Expected to have capped events at 100 events.")
+
+        self.assertEqual(self.sent[:100], events)
+
+    def testSyncEventsBeforeNoCap(self):
+        """Test querying events before a certain time. Result is not capped."""
+        time.sleep(0.5)  # Max time to persist the messages
+
+        allevents = self._fetchAllEvents()
+        to = allevents[9][0]
+        events, capped = self._fetchEvents(to=to)
+        events = [ev[1] for ev in events]
+
+        self.assertFalse(capped)
+
+        self.assertEqual(10, len(events))
+        self.assertEqual(self.sent[:10], events)
+
+    def testSyncEventsBetweenWithCap(self):
+        """Test querying a slice of the events. Result is capped."""
+        time.sleep(0.5)  # Max time to persist the messages
+
+        allevents = self._fetchAllEvents()
         from_ = allevents[3][0]
         to = allevents[-3][0]
-        events = [event[1] for event in clients.query_events(self.querysock,
-                                                             from_=from_,
-                                                             to=to)]
-        self.assertEqual([event[1] for event in allevents[4:-2]], events)
+        events, capped = self._fetchEvents(from_=from_, to=to)
+        events = [ev[1] for ev in events]
+
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertEqual(100, len(events),
+                         "Expected to have capped events at 100 events.")
+        allevdata = [ev[1] for ev in allevents]
+
+        self.assertEqual(events, [ev[1] for ev in allevents[4:(4 + 100)]])
+
+        self.assertEqual(self.sent[4:len(events) + 4], events)
 
     def testSyncNontExistentEvent(self):
         """Test when querying for non-existent event id."""
-        result = clients.query_events(self.querysock, from_=b"non-exist")
-        self.assertRaises(clients.QueryException,
-                          list, result)
+        nonexistentevid = (b'', b'non-exist', b'non-exist2')
+
+        for evid1, evid2 in itertools.permutations(nonexistentevid, 2):
+            # Testing  various permutations of non-existing event id queries
+            self.querysock.send(b'QUERY', zmq.SNDMORE)  # Command
+            self.querysock.send(evid1, zmq.SNDMORE)     # From
+            self.querysock.send(evid2)                  # To
+            resp = self.querysock.recv()
+            self.assertTrue(resp.startswith(b'ERROR '))
+            self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
 
     def tearDown(self):
         """Close Rewind test instance."""
