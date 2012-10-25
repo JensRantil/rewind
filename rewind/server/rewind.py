@@ -192,6 +192,10 @@ class _RewindRunner(object):
                 self.query_socket.send(b"END")
         else:
             logging.warn("Could not identify request type: %s", requesttype)
+            while self.query_socket.getsockopt(zmq.RCVMORE):
+                # Making sure we 'empty' enveloped message. Otherwise, we can't
+                # respond.
+                self.query_socket.recv()
             self.query_socket.send(b"ERROR Unknown request type")
 
         return True

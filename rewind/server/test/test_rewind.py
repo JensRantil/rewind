@@ -477,6 +477,15 @@ class TestQuerying(unittest.TestCase):
         self.assertTrue(data.startswith(b'ERROR'))
         self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
 
+    def testUnrecognizedEnvelopedRequest(self):
+        """Test how Rewind handles unknown enveloped request commands."""
+        return
+        self.querysock.send(b"UNKNOWN COMMAND", zmq.SNDMORE)
+        self.querysock.send(b"additional data")
+        data = self.querysock.recv()
+        self.assertTrue(data.startswith(b'ERROR'))
+        self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
+
     def tearDown(self):
         """Close Rewind test instance."""
         self.querysock.close()
