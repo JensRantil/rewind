@@ -17,6 +17,7 @@
 """Test overall Rewind execution."""
 from __future__ import print_function
 import contextlib
+import re
 import shutil
 import sys
 import tempfile
@@ -24,7 +25,6 @@ import threading
 import time
 import unittest
 import uuid
-import re
 
 import zmq
 
