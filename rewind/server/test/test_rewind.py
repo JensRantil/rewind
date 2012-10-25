@@ -275,6 +275,17 @@ class TestQuerying(unittest.TestCase):
 
     def setUp(self):
         """Start and populate a Rewind instance to test querying."""
+
+        # Generate artifical events. Doing this at the top of the function so
+        # that ZeroMQ gets disappointed that we don't close sockets and stuff
+        # if things fails.
+        NEVENTS = 200
+        events = [uuid.uuid1().hex.encode() for i in range(NEVENTS)]
+        self.assertTrue(isinstance(events[0], bytes), type(events[0]))
+        self.assertEqual(len(events), len(set(events)),
+                         'There were duplicate IDs.'
+                         ' Maybe the UUID1 algorithm is flawed?')
+
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
@@ -291,13 +302,6 @@ class TestQuerying(unittest.TestCase):
         # Making sure context.term() does not time out
         # Could be removed if this test works as expected
         transmitter.setsockopt(zmq.LINGER, 1000)
-
-        # Generate artifical events
-        NEVENTS = 200
-        events = [uuid.uuid1().hex for i in range(NEVENTS)]
-        self.assertEqual(len(events), len(set(events)),
-                         'There were duplicate IDs.'
-                         ' Maybe the UUID1 algorithm is flawed?')
 
         self.sent = []
         for event in events:
@@ -336,6 +340,9 @@ class TestQuerying(unittest.TestCase):
            result was capped. True if all were returned, False if capped.
 
         """
+        self.assertTrue(isinstance(from_, bytes), type(from_))
+        self.assertTrue(isinstance(to, bytes), type(to))
+
         self.querysock.send(b'QUERY', zmq.SNDMORE)  # Command
         self.querysock.send(from_, zmq.SNDMORE)     # From
         self.querysock.send(to)                     # To
@@ -452,7 +459,7 @@ class TestQuerying(unittest.TestCase):
 
     def testSyncNontExistentEvent(self):
         """Test when querying for non-existent event id."""
-        nonexistentevid = ('', b'non-exist', b'non-exist2')
+        nonexistentevid = (b'', b'non-exist', b'non-exist2')
 
         for evid1, evid2 in itertools.permutations(nonexistentevid, 2):
             # Testing  various permutations of non-existing event id queries
