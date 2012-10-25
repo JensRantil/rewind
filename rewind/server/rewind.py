@@ -192,7 +192,7 @@ class _RewindRunner(object):
                 self.query_socket.send(b"END")
         else:
             logging.warn("Could not identify request type: %s", requesttype)
-            self.query_socket.send("ERROR Unknown request type")
+            self.query_socket.send(b"ERROR Unknown request type")
 
         return True
 

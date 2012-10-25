@@ -470,6 +470,13 @@ class TestQuerying(unittest.TestCase):
             self.assertTrue(resp.startswith(b'ERROR '))
             self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
 
+    def testUnrecognizedRequest(self):
+        """Test how Rewind handles unrecognized request commands."""
+        self.querysock.send(b"UNKNOWN COMMAND")
+        data = self.querysock.recv()
+        self.assertTrue(data.startswith(b'ERROR'))
+        self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
+
     def tearDown(self):
         """Close Rewind test instance."""
         self.querysock.close()
