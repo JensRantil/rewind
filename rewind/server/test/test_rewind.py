@@ -27,6 +27,7 @@ import time
 import unittest
 import uuid
 
+import mock
 import zmq
 
 import rewind.server.rewind as rewind
@@ -497,3 +498,26 @@ class TestQuerying(unittest.TestCase):
                          "Rewind should not have been running. It was.")
 
         self.context.term()
+
+
+class TestIdGenerator(unittest.TestCase):
+
+    """Test `_IdGenerator`."""
+
+    def testRegenerationIfKeyExists(self):
+        """Test key-exist-check on regeneration.
+
+        Regeneration is done so seldom in regular tests that this check needs
+        to be executed specifically.
+
+        """
+        key_checker = mock.Mock()
+        key_checker.side_effect = [True, True, True, False]
+
+        generator = rewind._IdGenerator(key_checker)
+        key = generator.generate()
+
+        # Assert the returns key was checked for existence
+        key_checker.assert_called_with(key)
+
+        self.assertEqual(key_checker.call_count, 4)
