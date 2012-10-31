@@ -480,7 +480,6 @@ class TestQuerying(unittest.TestCase):
 
     def testUnrecognizedEnvelopedRequest(self):
         """Test how Rewind handles unknown enveloped request commands."""
-        return
         self.querysock.send(b"UNKNOWN COMMAND", zmq.SNDMORE)
         self.querysock.send(b"additional data")
         data = self.querysock.recv()
