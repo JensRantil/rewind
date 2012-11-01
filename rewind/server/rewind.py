@@ -342,11 +342,7 @@ def main(argv=None):
     if not (args.incoming_bind_endpoints or args.query_bind_endpoints):
         errmsg = ("You must either specify an incoming or query endpoint.\n"
                   "(there's no use in simply having a streaming endpoint)")
-        if exit:
-            parser.error(errmsg)
-        else:
-            print(errmsg)
-            return 2
+        parser.error(errmsg)
 
     exitcode = run(args)
     return exitcode
