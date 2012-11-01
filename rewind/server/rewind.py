@@ -212,15 +212,12 @@ def _zmq_context_context(*args):
 
 
 @contextlib.contextmanager
-def _zmq_socket_context(context, socket_type, bind_endpoints,
-                        connect_endpoints):
+def _zmq_socket_context(context, socket_type, bind_endpoints):
     """A ZeroMQ socket context that both constructs a socket and closes it."""
     socket = context.socket(socket_type)
     try:
         for endpoint in bind_endpoints:
             socket.bind(endpoint)
-        for endpoint in connect_endpoints:
-            socket.connect(endpoint)
         yield socket
     finally:
         socket.close()
@@ -269,15 +266,12 @@ def run(args):
 
     with _zmq_context_context(3) as context, \
             _zmq_socket_context(context, zmq.PULL,
-                                args.incoming_bind_endpoints,
-                                args.incoming_connect_endpoints) \
+                                args.incoming_bind_endpoints) \
             as incoming_socket, \
-            _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints,
-                                args.query_connect_endpoints) \
+            _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints) \
             as query_socket, \
             _zmq_socket_context(context, zmq.PUB,
-                                args.streaming_bind_endpoints,
-                                args.streaming_connect_endpoints) \
+                                args.streaming_bind_endpoints) \
             as streaming_socket:
         # Executing the program in the context of ZeroMQ context as well as
         # ZeroMQ sockets. Using with here to make sure are correctly closing
@@ -324,10 +318,6 @@ def main(argv=None):
                                 metavar='ZEROMQ-ENDPOINT', default=[],
                                 help='the bind address for incoming events',
                                 dest='incoming_bind_endpoints')
-    incoming_group.add_argument('--incoming-connect-endpoint', action='append',
-                                metavar='ZEROMQ-ENDPOINT', default=[],
-                                help='the connect address for incoming events',
-                                dest='incoming_connect_endpoints')
     query_group = parser.add_argument_group(
         title='Querying endpoints',
         description='Endpoints listening for event queries.'
@@ -336,10 +326,6 @@ def main(argv=None):
                              metavar='ZEROMQ-ENDPOINT', default=[],
                              help='the bind address for querying of events',
                              action='append', dest='query_bind_endpoints')
-    query_group.add_argument('--query-connect-endpoint',
-                             metavar='ZEROMQ-ENDPOINT', default=[],
-                             help='the connect address for querying of events',
-                             action='append', dest='query_connect_endpoints')
     stream_group = parser.add_argument_group(
         title='Streaming endpoints',
         description='Endpoints for streaming incoming events.'
@@ -349,20 +335,11 @@ def main(argv=None):
                               help='the bind address for streaming of events',
                               action='append',
                               dest='streaming_bind_endpoints')
-    stream_group.add_argument('--streaming-connect-endpoint',
-                              metavar='ZEROMQ-ENDPOINT', default=[],
-                              help=('the connect address for streaming of '
-                                    'events'),
-                              action='append',
-                              dest='streaming_connect_endpoints')
 
     args = argv if argv is not None else sys.argv[1:]
     args = parser.parse_args(args)
 
-    if (not args.incoming_bind_endpoints and
-            not args.incoming_connect_endpoints and
-            not args.query_bind_endpoints and
-            not args.query_connect_endpoints):
+    if not (args.incoming_bind_endpoints or args.query_bind_endpoints):
         errmsg = ("You must either specify an incoming or query endpoint.\n"
                   "(there's no use in simply having a streaming endpoint)")
         if exit:
