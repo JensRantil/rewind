@@ -601,3 +601,20 @@ class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
         """Initialize an `InMemoryEventStore` used for testing."""
         self.store = eventstores.InMemoryEventStore()
         self._populate_store()
+
+    def testEventKeyAlreadyExistError(self):
+        """Assert key duplicates are not possible."""
+        randomdata = b"RANDOM DATA THIS IS"
+        for key in self.keys:
+            self.assertRaises(eventstores.EventStore.EventKeyAlreadyExistError,
+                              self.store.add_event, key, randomdata)
+
+    def testEventOrderError(self):
+        """Assert `EventOrderError` is thrown on incorrect query."""
+        n = len(self.keys)
+        for from_ in range(n - 1):
+            for to in range(from_ + 1, n):
+                self.assertNotEqual(from_, to)
+                self.assertRaises(eventstores.EventOrderError,
+                                  self.store.get_events, self.keys[to],
+                                  self.keys[from_])
