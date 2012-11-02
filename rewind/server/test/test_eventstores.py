@@ -258,6 +258,22 @@ class _TestEventStore:
         self.assertFalse(self.store.key_exists(randomkey),
                          "Expected key to not exist: {0}".format(randomkey))
 
+    def _testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        non_existing_key1 = "akey1"
+        non_existing_key2 = "akey2"
+        self.assertTrue(non_existing_key1 not in self.keys)
+        self.assertTrue(non_existing_key2 not in self.keys)
+        print("Method:", self)
+
+        self.assertRaises(eventstores.EventStore.EventKeyDoesNotExistError,
+                          self.store.get_events, from_=non_existing_key1)
+        self.assertRaises(eventstores.EventStore.EventKeyDoesNotExistError,
+                          self.store.get_events, to=non_existing_key1)
+        self.assertRaises(eventstores.EventStore.EventKeyDoesNotExistError,
+                          self.store.get_events, from_=non_existing_key1,
+                          to=non_existing_key2)
+
 
 class TestEventStore(unittest.TestCase):
 
@@ -632,6 +648,10 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
                                   self.store.get_events, self.keys[to],
                                   self.keys[from_])
 
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
+
     def tearDown(self):
         """Close and remove temporary store used by tests."""
         self.store.close()
@@ -663,3 +683,7 @@ class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
                 self.assertRaises(eventstores.EventOrderError,
                                   self.store.get_events, self.keys[to],
                                   self.keys[from_])
+
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
