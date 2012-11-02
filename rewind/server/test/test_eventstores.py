@@ -514,7 +514,7 @@ class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
         """
         for key in self.keys3:
             self.assertTrue(self.store.key_exists(key),
-                            "Key did not exist: {0}".format(key))
+                            "Expected key to exist: {0}".format(key))
 
 
 class TestLogEventStore(unittest.TestCase, _TestEventStore):
