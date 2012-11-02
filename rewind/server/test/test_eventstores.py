@@ -253,6 +253,11 @@ class _TestEventStore:
             self.assertTrue(self.store.key_exists(key),
                             "Key did not exist: {0}".format(key))
 
+        randomkey = "blaha the key"
+        self.assertTrue(randomkey not in self.keys)
+        self.assertFalse(self.store.key_exists(randomkey),
+                         "Expected key to not exist: {0}".format(randomkey))
+
 
 class TestEventStore(unittest.TestCase):
 
