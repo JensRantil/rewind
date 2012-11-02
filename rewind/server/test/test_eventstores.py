@@ -516,6 +516,26 @@ class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
             self.assertTrue(self.store.key_exists(key),
                             "Expected key to exist: {0}".format(key))
 
+    def testLoggingUnidentifiedFiles(self):
+        """Test logging unidentified files.
+
+        Currently, the actual logging is not asserted. However, coverage tells
+        us that the appropriate code was executed.
+
+        """
+        mstore = eventstores.InMemoryEventStore()
+        estore_factory = mock.Mock(return_value=mstore)
+
+        with mock.patch('os.path.exists') as exists_mock, \
+                mock.patch('os.listdir') as listdir_mock:
+            exists_mock.return_value = True
+            listdir_mock.return_value = ['randomfile.mp3']
+            store = eventstores.RotatedEventStore(estore_factory,
+                                                  '/random_dir', 'eventdb')
+            self.assertTrue(listdir_mock.call_count > 0)
+
+        estore_factory.assert_called_once_with('/random_dir/eventdb.0')
+
 
 class TestLogEventStore(unittest.TestCase, _TestEventStore):
 
