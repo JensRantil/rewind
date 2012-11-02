@@ -594,6 +594,10 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         for key in acceptable_keys:
             self.store.add_event(key, randomdata)
 
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
+
     def tearDown(self):
         """Close and remove the temporary store."""
         self.store.close()

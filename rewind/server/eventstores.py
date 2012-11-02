@@ -521,10 +521,15 @@ class LogEventStore(EventStore):
         with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             if from_:
+                found_from = False
                 for line in f:
                     key, eventstr = line.rstrip('\n\r').split("\t")
                     if key == from_:
+                        found_from = True
                         break
+                if not found_from:
+                    msg = 'to={0}'.format(to)
+                    raise EventStore.EventKeyDoesNotExistError(msg)
 
             # Continue until 'to' (if given, that is)
             found_to = False
