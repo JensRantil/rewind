@@ -568,6 +568,16 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
                           eventstores.LogEventStore,
                           self.tempfile.name)
 
+    def testKeyFormatCheck(self):
+        """Test the key format that this event store accepts."""
+        randomdata = b"RANDOM DATA"
+        self.assertRaises(ValueError, self.store.add_event, "a b", randomdata)
+
+        # Assert not raises ValueError
+        acceptable_keys = ["ab", "ab1", "ab-1", "123"]
+        for key in acceptable_keys:
+            self.store.add_event(key, randomdata)
+
     def tearDown(self):
         """Close and remove the temporary store."""
         self.store.close()
