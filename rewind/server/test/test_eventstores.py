@@ -622,6 +622,16 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
                           eventstores.SQLiteEventStore,
                           self.tempfile.name)
 
+    def testEventOrderError(self):
+        """Assert `EventOrderError` is thrown on incorrect query."""
+        n = len(self.keys)
+        for from_ in range(n - 1):
+            for to in range(from_ + 1, n):
+                self.assertNotEqual(from_, to)
+                self.assertRaises(eventstores.EventOrderError,
+                                  self.store.get_events, self.keys[to],
+                                  self.keys[from_])
+
     def tearDown(self):
         """Close and remove temporary store used by tests."""
         self.store.close()
