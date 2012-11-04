@@ -740,7 +740,8 @@ class RotatedEventStore(EventStore):
         if from_:
             frombatchno = self._find_batch_containing_event(from_)
             if frombatchno is None:
-                raise EventKeyDoesNotExistError('from_={0}'.format(from_))
+                msg = 'from_={0}'.format(from_)
+                raise EventStore.EventKeyDoesNotExistError(msg)
         else:
             frombatchno = 0
         if to:

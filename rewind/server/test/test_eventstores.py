@@ -266,13 +266,26 @@ class _TestEventStore:
         self.assertTrue(non_existing_key2 not in self.keys)
         print("Method:", self)
 
-        self.assertRaises(eventstores.EventStore.EventKeyDoesNotExistError,
-                          self.store.get_events, from_=non_existing_key1)
-        self.assertRaises(eventstores.EventStore.EventKeyDoesNotExistError,
-                          self.store.get_events, to=non_existing_key1)
-        self.assertRaises(eventstores.EventStore.EventKeyDoesNotExistError,
-                          self.store.get_events, from_=non_existing_key1,
-                          to=non_existing_key2)
+        exception = eventstores.EventStore.EventKeyDoesNotExistError
+
+        counter = 0
+        with self.assertRaises(exception):
+            for ev in self.store.get_events(from_=non_existing_key1):
+                counter += 1
+        self.assertEqual(counter, 0)
+
+        counter = 0
+        with self.assertRaises(exception):
+            for ev in self.store.get_events(to=non_existing_key1):
+                counter += 1
+        self.assertEqual(counter, 0)
+
+        counter = 0
+        with self.assertRaises(exception):
+            for ev in self.store.get_events(from_=non_existing_key1,
+                                            to=non_existing_key2):
+                counter += 1
+        self.assertEqual(counter, 0)
 
 
 class TestEventStore(unittest.TestCase):
@@ -550,6 +563,10 @@ class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
             self.assertTrue(listdir_mock.call_count > 0)
 
         estore_factory.assert_called_once_with('/random_dir/eventdb.0')
+
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
 
 
 class TestLogEventStore(unittest.TestCase, _TestEventStore):
