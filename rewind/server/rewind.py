@@ -57,7 +57,7 @@ class _IdGenerator:
         return key
 
 
-class _RewindRunner(object):
+class _MessagePasser(object):
 
     """Message juggler.
 
@@ -81,7 +81,7 @@ class _RewindRunner(object):
         streaming_socket -- the socket where all incoming events are being
                             published to event handlers. Only send() calls are
                             being made on this socket.
-        quitter_socket   -- socket used to signal that `_RewindRunner` shall
+        quitter_socket   -- socket used to signal that `_MessagePasser` shall
                             quit its main loop. Only recv() calls are being
                             made on this socket.
 
@@ -343,8 +343,8 @@ def _run_quittable(args, quitter_socket):
         # things in the correct order, particularly also if we have an
         # exception or similar.
 
-        runner = _RewindRunner(eventstore, incoming_socket, query_socket,
-                               streaming_socket, quitter_socket)
+        runner = _MessagePasser(eventstore, incoming_socket, query_socket,
+                                streaming_socket, quitter_socket)
         runner.run()
 
     return 0
