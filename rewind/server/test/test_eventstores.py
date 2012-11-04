@@ -494,7 +494,6 @@ class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
         self.items = list(zip(self.keys, self.vals))
         self.keys3, self.vals3 = keys3, vals3
         self.estore_factory = estore_factory
-        self.mstore1 = mstore1
         self.mstore2 = mstore2
         self.mstore3 = mstore3
         self.mstore4 = mstore4
