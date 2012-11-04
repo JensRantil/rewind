@@ -20,6 +20,7 @@ import contextlib
 import itertools
 import re
 import shutil
+import signal
 import sys
 import tempfile
 import threading
@@ -100,7 +101,7 @@ class TestCommandLineExecution(unittest.TestCase):
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
         print(" ".join(args))
-        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind = _RewindRunnerThread(args)
         self.rewind.start()
 
         time.sleep(3)
@@ -123,9 +124,7 @@ class _RewindRunnerThread(threading.Thread):
 
     """
 
-    _EXIT_CODE = b'EXIT'
-
-    def __init__(self, cmdline_args, exit_addr=None):
+    def __init__(self, cmdline_args):
         """Constructor.
 
         Parameters:
@@ -134,12 +133,6 @@ class _RewindRunnerThread(threading.Thread):
 
         """
         thread = self
-
-        assert '--exit-codeword' not in cmdline_args, \
-            "'--exit-codeword' is added by _RewindRunnerThread. Not elsewhere"
-        cmdline_args = (['--exit-codeword',
-                         _RewindRunnerThread._EXIT_CODE.decode()] +
-                        cmdline_args)
 
         def exitcode_runner(*args, **kwargs):
             try:
@@ -153,21 +146,13 @@ class _RewindRunnerThread(threading.Thread):
         super(_RewindRunnerThread, self).__init__(target=exitcode_runner,
                                                   name="test-rewind",
                                                   args=(cmdline_args,))
-        self._exit_addr = exit_addr
 
-    def stop(self, context=None):
+    def stop(self):
         """Send a stop message to the event thread."""
-        assert self._exit_addr is not None
+        rewind._stop_mainloop()
 
-        if context is None:
-            context = zmq.Context(1)
-        socket = context.socket(zmq.PUSH)
-        socket.setsockopt(zmq.LINGER, 1000)
-        socket.connect(self._exit_addr)
-        socket.send(_RewindRunnerThread._EXIT_CODE)
         time.sleep(0.5)  # Acceptable exit time
         assert not self.isAlive()
-        socket.close()
 
 
 class TestReplication(unittest.TestCase):
@@ -181,7 +166,7 @@ class TestReplication(unittest.TestCase):
         """Starting a Rewind instance to test replication."""
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind = _RewindRunnerThread(args)
         self.rewind.start()
 
         self.context = zmq.Context(3)
@@ -263,7 +248,7 @@ class TestReplication(unittest.TestCase):
 
         self.assertTrue(self.rewind.isAlive(),
                         "Did rewind crash? Not running.")
-        self.rewind.stop(self.context)
+        self.rewind.stop()
         self.assertFalse(self.rewind.isAlive(),
                          "Rewind should not have been running. It was.")
 
@@ -289,7 +274,7 @@ class TestQuerying(unittest.TestCase):
 
         args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
-        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind = _RewindRunnerThread(args)
         self.rewind.start()
 
         self.context = zmq.Context(3)
@@ -492,7 +477,7 @@ class TestQuerying(unittest.TestCase):
 
         self.assertTrue(self.rewind.isAlive(),
                         "Did rewind crash? Not running.")
-        self.rewind.stop(self.context)
+        self.rewind.stop()
         self.assertFalse(self.rewind.isAlive(),
                          "Rewind should not have been running. It was.")
 
