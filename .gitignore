@@ -5,7 +5,8 @@ rewind.egg-info
 *.egg
 
 # Created by `./setup.py upload`
-dist
+/dist
+/build
 
 # Nose files
 .noseids
