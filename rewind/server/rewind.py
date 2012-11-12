@@ -66,11 +66,10 @@ class _RewindRunner(object):
 
     """
 
-    def __init__(self, eventstore, incoming_socket, query_socket,
-                 streaming_socket, exit_message=None):
+    def __init__(self, eventstore, query_socket, streaming_socket,
+                 exit_message=None):
         """Constructor."""
         self.eventstore = eventstore
-        self.incoming_socket = incoming_socket
         self.query_socket = query_socket
         self.streaming_socket = streaming_socket
         assert exit_message is None or isinstance(exit_message, bytes)
@@ -79,11 +78,6 @@ class _RewindRunner(object):
 
         self.id_generator = _IdGenerator(key_exists=lambda key:
                                          eventstore.key_exists(key))
-
-        # Initialize poll set
-        self.poller = zmq.Poller()
-        self.poller.register(incoming_socket, zmq.POLLIN)
-        self.poller.register(query_socket, zmq.POLLIN)
 
     def run(self):
         """Main loop for `_RewindRunner`.
@@ -103,14 +97,7 @@ class _RewindRunner(object):
         (it should quit, that is).
 
         """
-        socks = dict(self.poller.poll())
-
-        if (self.incoming_socket in socks and
-                socks[self.incoming_socket] == zmq.POLLIN):
-            return self._handle_incoming_event()
-        elif (self.query_socket in socks
-              and socks[self.query_socket] == zmq.POLLIN):
-            return self._handle_query()
+        return self._handle_query()
 
     def _handle_incoming_event(self):
         """Handle an incoming event.
@@ -118,16 +105,16 @@ class _RewindRunner(object):
         Returns True if further messages should be received, False otherwise
         (it should quit, that is).
 
-        """
-        eventstr = self.incoming_socket.recv()
+        TODO: Move the content of this function into `_handle_one_message`.
+        This class function does not simply handle incoming events.
 
-        if self.exit_message and eventstr == self.exit_message:
-            return False
+        """
+        eventstr = self.query_socket.recv()
 
         newid = self.id_generator.generate()
 
         # Make sure newid is not part of our request vocabulary
-        assert newid != "QUERY", \
+        assert newid not in (b"QUERY", b"PUBLISH"), \
             "Generated ID must not be part of req/rep vocabulary."
         assert not newid.startswith("ERROR"), \
             "Generated ID must not be part of req/rep vocabulary."
@@ -141,17 +128,27 @@ class _RewindRunner(object):
 
         self.oldid = newid
 
-        return True
-
     def _handle_query(self):
         """Handle an event query.
 
         Returns True if further messages should be received, False otherwise
         (it should quit, that is).
 
+        It is crucial that this class function always respond with a
+        query_socket.sent() for every query_socket.recv() call. Otherwise,
+        clients and/or server might be stuck in limbo.
+
         """
+        result = True
+
         requesttype = self.query_socket.recv()
-        if requesttype == b"QUERY":
+
+        # TODO: Extract the different cases below into separate class methods.
+        if requesttype == b"PUBLISH":
+            self._handle_incoming_event()
+            assert not self.query_socket.getsockopt(zmq.RCVMORE)
+            self.query_socket.send(b"PUBLISHED")
+        elif requesttype == b"QUERY":
             assert self.query_socket.getsockopt(zmq.RCVMORE)
             fro = self.query_socket.recv().decode()
             assert self.query_socket.getsockopt(zmq.RCVMORE)
@@ -190,15 +187,21 @@ class _RewindRunner(object):
                     self.query_socket.send(eventid.encode(), zmq.SNDMORE)
                     self.query_socket.send(eventdata, zmq.SNDMORE)
                 self.query_socket.send(b"END")
+        elif (self.exit_message is not None
+              and requesttype == self.exit_message):
+            _logger.warn("Asked to quit through an exit message."
+                         "I'm quitting...")
+            self.query_socket.send(b'QUIT')
+            result = False
         else:
-            logging.warn("Could not identify request type: %s", requesttype)
+            _logger.warn("Could not identify request type: %s", requesttype)
             while self.query_socket.getsockopt(zmq.RCVMORE):
                 # Making sure we 'empty' enveloped message. Otherwise, we can't
                 # respond.
                 self.query_socket.recv()
             self.query_socket.send(b"ERROR Unknown request type")
 
-        return True
+        return result
 
 
 @contextlib.contextmanager
@@ -265,9 +268,6 @@ def run(args):
         eventstore = eventstores.InMemoryEventStore()
 
     with _zmq_context_context(3) as context, \
-            _zmq_socket_context(context, zmq.PULL,
-                                args.incoming_bind_endpoints) \
-            as incoming_socket, \
             _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints) \
             as query_socket, \
             _zmq_socket_context(context, zmq.PUB,
@@ -278,7 +278,7 @@ def run(args):
         # things in the correct order, particularly also if we have an
         # exception or similar.
 
-        runner = _RewindRunner(eventstore, incoming_socket, query_socket,
+        runner = _RewindRunner(eventstore, query_socket,
                                streaming_socket, (args.exit_message.encode()
                                                   if args.exit_message
                                                   else None))
@@ -310,14 +310,6 @@ def main(argv=None):
                              " parameter, events will be stored in-memory"
                              " only.")
 
-    incoming_group = parser.add_argument_group(
-        title='Incoming event endpoints',
-        description='ZeroMQ endpoint for incoming events.'
-    )
-    incoming_group.add_argument('--incoming-bind-endpoint', action='append',
-                                metavar='ZEROMQ-ENDPOINT', default=[],
-                                help='the bind address for incoming events',
-                                dest='incoming_bind_endpoints')
     query_group = parser.add_argument_group(
         title='Querying endpoints',
         description='Endpoints listening for event queries.'
@@ -339,8 +331,8 @@ def main(argv=None):
     args = argv if argv is not None else sys.argv[1:]
     args = parser.parse_args(args)
 
-    if not (args.incoming_bind_endpoints or args.query_bind_endpoints):
-        errmsg = ("You must either specify an incoming or query endpoint.\n"
+    if not args.query_bind_endpoints:
+        errmsg = ("You must specify a query endpoint.\n"
                   "(there's no use in simply having a streaming endpoint)")
         parser.error(errmsg)
 
