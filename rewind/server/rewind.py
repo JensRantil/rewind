@@ -96,44 +96,6 @@ class _RewindRunner(object):
         Returns True if further messages should be received, False otherwise
         (it should quit, that is).
 
-        """
-        return self._handle_query()
-
-    def _handle_incoming_event(self):
-        """Handle an incoming event.
-
-        Returns True if further messages should be received, False otherwise
-        (it should quit, that is).
-
-        TODO: Move the content of this function into `_handle_one_message`.
-        This class function does not simply handle incoming events.
-
-        """
-        eventstr = self.query_socket.recv()
-
-        newid = self.id_generator.generate()
-
-        # Make sure newid is not part of our request vocabulary
-        assert newid not in (b"QUERY", b"PUBLISH"), \
-            "Generated ID must not be part of req/rep vocabulary."
-        assert not newid.startswith("ERROR"), \
-            "Generated ID must not be part of req/rep vocabulary."
-
-        # Important this is done before forwarding to the streaming socket
-        self.eventstore.add_event(newid, eventstr)
-
-        self.streaming_socket.send(newid.encode(), zmq.SNDMORE)
-        self.streaming_socket.send(self.oldid.encode(), zmq.SNDMORE)
-        self.streaming_socket.send(eventstr)
-
-        self.oldid = newid
-
-    def _handle_query(self):
-        """Handle an event query.
-
-        Returns True if further messages should be received, False otherwise
-        (it should quit, that is).
-
         It is crucial that this class function always respond with a
         query_socket.sent() for every query_socket.recv() call. Otherwise,
         clients and/or server might be stuck in limbo.
@@ -202,6 +164,35 @@ class _RewindRunner(object):
             self.query_socket.send(b"ERROR Unknown request type")
 
         return result
+
+    def _handle_incoming_event(self):
+        """Handle an incoming event.
+
+        Returns True if further messages should be received, False otherwise
+        (it should quit, that is).
+
+        TODO: Move the content of this function into `_handle_one_message`.
+        This class function does not simply handle incoming events.
+
+        """
+        eventstr = self.query_socket.recv()
+
+        newid = self.id_generator.generate()
+
+        # Make sure newid is not part of our request vocabulary
+        assert newid not in (b"QUERY", b"PUBLISH"), \
+            "Generated ID must not be part of req/rep vocabulary."
+        assert not newid.startswith("ERROR"), \
+            "Generated ID must not be part of req/rep vocabulary."
+
+        # Important this is done before forwarding to the streaming socket
+        self.eventstore.add_event(newid, eventstr)
+
+        self.streaming_socket.send(newid.encode(), zmq.SNDMORE)
+        self.streaming_socket.send(self.oldid.encode(), zmq.SNDMORE)
+        self.streaming_socket.send(eventstr)
+
+        self.oldid = newid
 
 
 @contextlib.contextmanager
