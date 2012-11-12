@@ -72,15 +72,16 @@ section below.
 
 .. _rewind-client: https://github.com/JensRantil/rewind-client
 
-Rewind has three different wire protocols. Each is using ZeroMQ as low
-level transport protocol. Wire protocol has one single ZeroMQ endpoint
-in Rewind:
+Rewind has two different wire protocols. Each is using ZeroMQ as low
+level transport protocol. Each wire protocol has one single ZeroMQ
+endpoint in Rewind:
 
-* A receiving socket.
+* **A request/response socket for Rewind.** It is used for publishing
+  new events and querying chronological slices of all events throughout
+  time.
 
-* A streaming socket.
-
-* A socket for querying Rewind.
+* **A streaming socket.** It is used by all clients that are interested
+  in all new incoming events.
 
 Each endpoint is configurable through command line when starting
 ``rewind``. Issue ``rewind --help`` to get a list of the specific
@@ -89,38 +90,8 @@ command line arguments ``rewind`` can handle.
 *Note that the wire protocol is still under heavy development. Pull
 requests and improvement proposals are welcome!*
 
-Receiving events
-----------------
-The receiving end is the end that received incoming events. Rewind does
-not make any assumptions about what an event looks like. In fact, it
-only sees it as a binary blob of bytes.
-
-Rewind uses a ZeroMQ PULL socket for receiving events. Every event is a
-single non-multipart message where the content of the message is the
-binary blob.
-
-Streaming events
-----------------
-Every incoming event gets broadcast to all sockets connected to the
-streaming socket. The streaming socket a ZeroMQ socket of type PUB.
-
-Every message received automatically gets assigned a unique event id
-(UUID, type 1) by Rewind. This event id is used for querying events (see
-below). Each sent message from the streaming is a multipart message that
-consists of two parts:
-
-1. The event ID. The client should view this as a series of bytes.
-
-2. The previous event ID. This information is useful to know whether
-   ZeroMQ high-water mark kicked in while syncing up a client while
-   querying for older events. If streaming has just begun, this message
-   part can be empty and can thus be ignored.
-
-3. The event content. This is the exact same bytes that were
-   correspondingly sent to the receiving socket.
-
-Querying events
----------------
+Request/response socket
+-----------------------
 The socket for querying Rewind is the one which has the most advanced
 wire protocol. The socket is of type RES and takes commands. A typical
 converation between a client (C) and Rewind (R) looks like this::
@@ -131,13 +102,28 @@ converation between a client (C) and Rewind (R) looks like this::
     R: Response
     ...
 
-Request
-```````
+Request types
+`````````````
 Each request is a multipart message. The first part is a string that
-specifies the type of request. Currently there's only one type of
-request, namely "QUERY".
+specifies the type of request. There are multiple request types:
 
-For the "QUERY" request type the next two message parts must be:
+PUBLISH
+'''''''
+Used for publishing an event. The next message part is a blob of bytes
+that is supposed to be a serialized event of some form. Rewind does not
+know anything about the serialization format. It always simply stores
+the bytes.
+
+Each new incoming/published event triggers that it is to be streamed out
+to all listening clients.
+
+On successful reception of an event, Rewind responds with the ASCII
+bytes ``PUBLISHED``. See "Error response" below for error response.
+
+QUERY
+'''''
+Used for querying for older events. For the ``QUERY`` request type the
+next two message parts must be:
 
 * Contains an optional event id, or an empty part. Restricts the
   earliest (chronologically) incoming message that we are interested in
@@ -157,23 +143,45 @@ If you are a data structure type-of-guy you could view Rewind as a
 distributed insert-ordered map (event id => event) that allows querying
 of ranges of events based on event ids.
 
-Response
-````````
-A response can be one of two things:
+There are two types of responses that can be given upon a query:
 
-* A single message starting with the ASCII text ``ERROR``. This means an
-  error occured. The rest of message contains a human readable
-  description of the actual error that occured. This information can be
-  highly useful for remote clients to debug any problems that might
-  arise.
+* An error. See "Error response" below.
 
-* A resultset containing events. It's a multipart message containing
-  frames like so; eventid #1, event #1, eventid #2, event #2, eventid
-  #3, event #3, ... where eventid #X is the event id for event X. At
-  most 100 messages will be returned. If Rewind did not cap number of
-  events, the result will be appended by a last frame containing the
-  ASCII content "END". It is up to the client to make requests
-  repeatedly if the result set is capped.
+* The response of an event query is a resultset containing events. It's
+  a multipart message containing frames like so; eventid #1, event #1,
+  eventid #2, event #2, eventid #3, event #3, ... where eventid #X is
+  the event id for event X. At most 100 messages will be returned. If
+  Rewind did not cap number of events, the result will be appended by a
+  last frame containing the ASCII content ``END``. It is up to the
+  client to make requests repeatedly if the result set is capped.
+
+Error response
+``````````````
+If anything goes wrong, a single message starting with the ASCII text
+``ERROR`` will be sent with the response. This means an error occured.
+The rest of message contains a human readable description of the actual
+error that occured. This information can be highly useful for remote
+clients to debug any problems that might arise.
+
+Event stream
+------------
+Every incoming event gets broadcast to all sockets connected to the
+streaming socket. The streaming socket a ZeroMQ socket of type PUB.
+
+Every message received automatically gets assigned a unique event id
+(UUID, type 1) by Rewind. This event id is used for querying events (see
+below). Each sent message from the streaming is a multipart message that
+consists of two parts:
+
+1. The event ID. The client should view this as a series of bytes.
+
+2. The previous event ID. This information is useful to know whether
+   ZeroMQ high-water mark kicked in while syncing up a client while
+   querying for older events. If streaming has just begun, this message
+   part can be empty and can thus be ignored.
+
+3. The event content. This is the exact same bytes that were
+   correspondingly sent to the receiving socket.
 
 Developing
 ==========
