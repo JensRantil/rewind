@@ -105,50 +105,10 @@ class _RewindRunner(object):
 
         requesttype = self.query_socket.recv()
 
-        # TODO: Extract the different cases below into separate class methods.
         if requesttype == b"PUBLISH":
             self._handle_incoming_event()
-            assert not self.query_socket.getsockopt(zmq.RCVMORE)
-            self.query_socket.send(b"PUBLISHED")
         elif requesttype == b"QUERY":
-            assert self.query_socket.getsockopt(zmq.RCVMORE)
-            fro = self.query_socket.recv().decode()
-            assert self.query_socket.getsockopt(zmq.RCVMORE)
-            to = self.query_socket.recv().decode()
-            assert not self.query_socket.getsockopt(zmq.RCVMORE)
-
-            _logger.debug("Incoming query: (from, to)=(%s, %s)", fro, to)
-
-            try:
-                events = self.eventstore.get_events(fro if fro else None,
-                                                    to if to else None)
-            except eventstores.EventStore.EventKeyDoesNotExistError as e:
-                _logger.exception("A client requested a key that does not"
-                                  " exist:")
-                self.query_socket.send(b"ERROR Key did not exist")
-                return True
-
-            # Since we are using ZeroMQ enveloping we want to cap the
-            # maximum number of messages that are send for each request.
-            # Otherwise we might run out of memory for a lot of events.
-            MAX_ELMNTS_PER_REQ = 100
-
-            events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ)
-            events = list(events)
-            if len(events) == MAX_ELMNTS_PER_REQ:
-                # There are more elements, but we are capping the result
-                for eventid, eventdata in events[:-1]:
-                    self.query_socket.send(eventid.encode(), zmq.SNDMORE)
-                    self.query_socket.send(eventdata, zmq.SNDMORE)
-                lasteventid, lasteventdata = events[-1]
-                self.query_socket.send(lasteventid.encode(), zmq.SNDMORE)
-                self.query_socket.send(lasteventdata)
-            else:
-                # Sending all events. Ie., we are not capping
-                for eventid, eventdata in events:
-                    self.query_socket.send(eventid.encode(), zmq.SNDMORE)
-                    self.query_socket.send(eventdata, zmq.SNDMORE)
-                self.query_socket.send(b"END")
+            self._handle_event_query()
         elif (self.exit_message is not None
               and requesttype == self.exit_message):
             _logger.warn("Asked to quit through an exit message."
@@ -157,13 +117,63 @@ class _RewindRunner(object):
             result = False
         else:
             _logger.warn("Could not identify request type: %s", requesttype)
-            while self.query_socket.getsockopt(zmq.RCVMORE):
-                # Making sure we 'empty' enveloped message. Otherwise, we can't
-                # respond.
-                self.query_socket.recv()
-            self.query_socket.send(b"ERROR Unknown request type")
+            self._handle_unknown_command()
 
         return result
+
+    def _handle_unknown_command(self):
+        """Handle an unknown RES command.
+
+        The function makes sure to recv all message parts and respond with an
+        error.
+
+        """
+        while self.query_socket.getsockopt(zmq.RCVMORE):
+            # Making sure we 'empty' enveloped message. Otherwise, we can't
+            # respond.
+            self.query_socket.recv()
+        self.query_socket.send(b"ERROR Unknown request type")
+
+    def _handle_event_query(self):
+        """Handle an incoming event query."""
+        assert self.query_socket.getsockopt(zmq.RCVMORE)
+        fro = self.query_socket.recv().decode()
+        assert self.query_socket.getsockopt(zmq.RCVMORE)
+        to = self.query_socket.recv().decode()
+        assert not self.query_socket.getsockopt(zmq.RCVMORE)
+
+        _logger.debug("Incoming query: (from, to)=(%s, %s)", fro, to)
+
+        try:
+            events = self.eventstore.get_events(fro if fro else None,
+                                                to if to else None)
+        except eventstores.EventStore.EventKeyDoesNotExistError as e:
+            _logger.exception("A client requested a key that does not"
+                              " exist:")
+            self.query_socket.send(b"ERROR Key did not exist")
+            return
+
+        # Since we are using ZeroMQ enveloping we want to cap the
+        # maximum number of messages that are send for each request.
+        # Otherwise we might run out of memory for a lot of events.
+        MAX_ELMNTS_PER_REQ = 100
+
+        events = itertools.islice(events, 0, MAX_ELMNTS_PER_REQ)
+        events = list(events)
+        if len(events) == MAX_ELMNTS_PER_REQ:
+            # There are more elements, but we are capping the result
+            for eventid, eventdata in events[:-1]:
+                self.query_socket.send(eventid.encode(), zmq.SNDMORE)
+                self.query_socket.send(eventdata, zmq.SNDMORE)
+            lasteventid, lasteventdata = events[-1]
+            self.query_socket.send(lasteventid.encode(), zmq.SNDMORE)
+            self.query_socket.send(lasteventdata)
+        else:
+            # Sending all events. Ie., we are not capping
+            for eventid, eventdata in events:
+                self.query_socket.send(eventid.encode(), zmq.SNDMORE)
+                self.query_socket.send(eventdata, zmq.SNDMORE)
+            self.query_socket.send(b"END")
 
     def _handle_incoming_event(self):
         """Handle an incoming event.
@@ -193,6 +203,9 @@ class _RewindRunner(object):
         self.streaming_socket.send(eventstr)
 
         self.oldid = newid
+
+        assert not self.query_socket.getsockopt(zmq.RCVMORE)
+        self.query_socket.send(b"PUBLISHED")
 
 
 @contextlib.contextmanager
