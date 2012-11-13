@@ -243,7 +243,7 @@ class _TestEventStore:
         self.assertEqual(list(result), self.items[:-1])
 
     def testQueryBetween(self):
-        """Test to query events between to times."""
+        """Test to query events between two times."""
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
         self.assertEqual(list(result), self.items[2:-1])
 
