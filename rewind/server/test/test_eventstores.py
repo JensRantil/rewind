@@ -427,6 +427,24 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
             self.assertTrue(self.store.key_exists(key),
                             "Key did not exist: {0}".format(key))
 
+    def testEventKeyAlreadyExistError(self):
+        """Assert key duplicates are not possible."""
+        evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
+        nkeys_in_last_batch = len(self.keys) % evs_per_batch
+
+        # If this is tno true, this test is useless. No reasons to test if
+        # there were no events written to this batch.
+        self.assertTrue(nkeys_in_last_batch > 0)
+
+        keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
+        randomdata = b"RANDOM DATA THIS IS"
+        for key in keys_in_last_batch:
+            # `SyncedRotatedEventStore` only checks the current opened event
+            # store.  That's why we only check keys from `self.keys3`
+            self.assertRaises(eventstores.EventStore.EventKeyAlreadyExistError,
+                              self.store.add_event, key, randomdata)
+            #self.store.add_event(key, randomdata)
+
     def _check_md5_is_correct(self, dirpath):
         print("Directory:", dirpath)
         md5filename = os.path.join(dirpath, 'checksums.md5')
