@@ -264,7 +264,12 @@ class _TestEventStore:
                          "Expected key to not exist: {0}".format(randomkey))
 
     def _testNonExistingKeyQuery(self):
-        """Test behaviour when fetching non-existing keys."""
+        """Test behaviour when fetching non-existing keys.
+
+        This method is not being executed for every `EventStore`. To run this
+        test, each event store must invoke this class function individually.
+
+        """
         non_existing_key1 = "akey1"
         non_existing_key2 = "akey2"
         self.assertTrue(non_existing_key1 not in self.keys)
