@@ -440,11 +440,10 @@ class SQLiteEventStore(EventStore):
             count = res[0]
         if count == 0:
             return False
-        elif count == 1:
-            return True
         else:
-            msg = 'There multiple event instances of: {0}'.format(key)
-            raise RuntimeException(msg)
+            assert count in (0, 1), \
+                "Duplicate event ids detected: {0}".format(count)
+            return True
 
     def count(self):
         """Return the number of events in the db."""
