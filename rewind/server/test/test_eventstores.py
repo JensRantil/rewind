@@ -247,6 +247,11 @@ class _TestEventStore:
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
         self.assertEqual(list(result), self.items[2:-1])
 
+    def testQuerySingleEvent(self):
+        """Test to query a single event between two times."""
+        result = self.store.get_events(from_=self.keys[1], to=self.keys[2])
+        self.assertEqual(list(result), [self.items[2]])
+
     def testKeyExists(self):
         """Test `EventStore.key_exists(...)` behaviour."""
         for key in self.keys:
