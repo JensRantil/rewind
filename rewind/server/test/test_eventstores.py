@@ -321,7 +321,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
     """Test `SyncedRotationEventStores`."""
 
     # Number of events per batch
-    EVS_PER_BATCH = 5
+    EVS_PER_BATCH = 7
 
     def setUp(self):
         """Prepare each test."""
@@ -417,12 +417,15 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         """Test `RotatedEventStore.key_exists(...)`."""
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
-        if nkeys_in_last_batch > 0:
-            # No reasons to test if there were no events written to this batch
-            keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
-            for key in keys_in_last_batch:
-                self.assertTrue(self.store.key_exists(key),
-                                "Key did not exist: {0}".format(key))
+
+        # If this is not true, this test is useless. No reasons to test if
+        # there were no events written to this batch.
+        self.assertTrue(nkeys_in_last_batch > 0)
+
+        keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
+        for key in keys_in_last_batch:
+            self.assertTrue(self.store.key_exists(key),
+                            "Key did not exist: {0}".format(key))
 
     def _check_md5_is_correct(self, dirpath):
         print("Directory:", dirpath)
