@@ -18,7 +18,7 @@
 from __future__ import print_function
 import contextlib
 import itertools
-import hashlib
+import re
 import shutil
 import sys
 import tempfile
@@ -26,12 +26,10 @@ import threading
 import time
 import unittest
 import uuid
-import os
-import re
 
+import mock
 import zmq
 
-import rewind.client as clients
 import rewind.server.rewind as rewind
 
 
@@ -98,7 +96,7 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
-        args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
+        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
                 '--datadir', datapath]
         print(" ".join(args))
@@ -163,8 +161,7 @@ class _RewindRunnerThread(threading.Thread):
 
         if context is None:
             context = zmq.Context(1)
-        socket = context.socket(zmq.PUSH)
-        socket.setsockopt(zmq.LINGER, 1000)
+        socket = context.socket(zmq.REQ)
         socket.connect(self._exit_addr)
         socket.send(_RewindRunnerThread._EXIT_CODE)
         time.sleep(0.5)  # Acceptable exit time
@@ -181,14 +178,14 @@ class TestReplication(unittest.TestCase):
 
     def setUp(self):
         """Starting a Rewind instance to test replication."""
-        args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
+        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
         self.context = zmq.Context(3)
 
-        self.transmitter = self.context.socket(zmq.PUSH)
+        self.transmitter = self.context.socket(zmq.REQ)
         self.receiver = self.context.socket(zmq.SUB)
         self.receiver.setsockopt(zmq.SUBSCRIBE, b'')
 
@@ -199,16 +196,16 @@ class TestReplication(unittest.TestCase):
         # receiver does not just receive the tail of the stream.
         time.sleep(0.5)
 
-        # Making sure context.term() does not time out
-        # Could be removed if this test works as expected
-        self.transmitter.setsockopt(zmq.LINGER, 1000)
-
     def testBasicEventProxying(self):
         """Asserting a single event is proxied."""
         eventid = b"abc12332fffgdgaab134432423"
         eventstring = b"THIS IS AN EVENT"
 
+        self.transmitter.send(b"PUBLISH", zmq.SNDMORE)
         self.transmitter.send(eventstring)
+        response = self.transmitter.recv()
+        assert not self.transmitter.getsockopt(zmq.RCVMORE)
+        assert response == b"PUBLISHED"
 
         received_id = self.receiver.recv().decode()
         self.assertTrue(self.receiver.getsockopt(zmq.RCVMORE))
@@ -235,7 +232,11 @@ class TestReplication(unittest.TestCase):
 
         # Sending
         for msg in messages:
+            self.transmitter.send(b"PUBLISH", zmq.SNDMORE)
             self.transmitter.send(msg)
+            response = self.transmitter.recv()
+            assert not self.transmitter.getsockopt(zmq.RCVMORE)
+            assert response == b"PUBLISHED"
 
         # Receiving and asserting correct messages
         eventids = []
@@ -278,81 +279,214 @@ class TestQuerying(unittest.TestCase):
 
     def setUp(self):
         """Start and populate a Rewind instance to test querying."""
-        args = ['--incoming-bind-endpoint', 'tcp://127.0.0.1:8090',
-                '--query-bind-endpoint', 'tcp://127.0.0.1:8091']
+
+        # Generate artifical events. Doing this at the top of the function so
+        # that ZeroMQ gets disappointed that we don't close sockets and stuff
+        # if things fails.
+        NEVENTS = 200
+        events = [uuid.uuid1().hex.encode() for i in range(NEVENTS)]
+        self.assertTrue(isinstance(events[0], bytes), type(events[0]))
+        self.assertEqual(len(events), len(set(events)),
+                         'There were duplicate IDs.'
+                         ' Maybe the UUID1 algorithm is flawed?')
+
+        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090']
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
         self.context = zmq.Context(3)
 
-        self.query_socket = self.context.socket(zmq.REQ)
-        self.query_socket.connect('tcp://127.0.0.1:8091')
-        self.querier = clients.EventQuerier(self.query_socket)
-
-        transmitter = self.context.socket(zmq.PUSH)
-        transmitter.connect('tcp://127.0.0.1:8090')
-
-        # Making sure context.term() does not time out
-        # Could be removed if this test works as expected
-        transmitter.setsockopt(zmq.LINGER, 1000)
-
-        ids = [uuid.uuid1().hex for i in range(200)]
-        self.assertEqual(len(ids), len(set(ids)), 'There were duplicate IDs.'
-                         ' Maybe the UUID1 algorithm is flawed?')
-        users = [uuid.uuid1().hex for i in range(30)]
-        self.assertEqual(len(users), len(set(users)),
-                         'There were duplicate users.'
-                         ' Maybe the UUID1 algorithm is flawed?')
+        self.querysock = self.context.socket(zmq.REQ)
+        self.querysock.connect('tcp://127.0.0.1:8090')
 
         self.sent = []
-        for id in ids:
-            eventstr = "Event with id '{0}'".format(id).encode()
-            transmitter.send(eventstr)
-            self.sent.append(eventstr)
-        transmitter.close()
+        for event in events:
+            # Generating events
+            self.querysock.send(b"PUBLISH", zmq.SNDMORE)
+            self.querysock.send(event)
+            self.sent.append(event)
+            response = self.querysock.recv()
+            assert response == b"PUBLISHED"
+            assert not self.querysock.getsockopt(zmq.RCVMORE)
 
-    def testSyncAllPastEvents(self):
+    def _fetchAllEvents(self):
+        """Fetch all events previously put into Rewind.
+
+        Returns a list of events.
+
+        """
+        from_ = b''
+        to = b''
+        result = []
+        while True:
+            events, capped = self._fetchEvents(from_, to)
+            result.extend(events)
+            if not capped:
+                break
+            else:
+                from_ = events[-1][0]
+        return result
+
+    def _fetchEvents(self, from_=b'', to=b''):
+        """Make a ZeroMQ request/query for events.
+
+        Returns a tuple consisting of:
+         * a list of event tuple. Could have become capped by the event store
+         * if too many events were to be returned. Each tuple consists of:
+          * event id (type: bytes)
+          * event data (type: bytes)
+         * a boolean all events queried for were returned, or whether the
+           result was capped. True if all were returned, False if capped.
+
+        """
+        self.assertTrue(isinstance(from_, bytes), type(from_))
+        self.assertTrue(isinstance(to, bytes), type(to))
+
+        self.querysock.send(b'QUERY', zmq.SNDMORE)  # Command
+        self.querysock.send(from_, zmq.SNDMORE)     # From
+        self.querysock.send(to)                     # To
+
+        more = True    # Whether more events can be fetched from the response
+        capped = True  # Whether events were capped
+        events = []
+        while more:
+            data = self.querysock.recv()
+            self.assertFalse(data.startswith(b'ERROR'))
+
+            if data == b'END':
+                self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
+                capped = False
+            else:
+                eventid = data
+                self.assertTrue(isinstance(eventid, bytes), type(eventid))
+                self.assertTrue(self.querysock.getsockopt(zmq.RCVMORE))
+                eventdata = self.querysock.recv()
+                self.assertFalse(eventdata.startswith(b'ERROR'))
+                events.append((eventid, eventdata))
+
+            if not self.querysock.getsockopt(zmq.RCVMORE):
+                more = False
+
+        return events, capped
+
+    def testSyncAllPastEventsNonCapped(self):
         """Test querying all events."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event[1] for event in self.querier.query()]
-        self.assertEqual(allevents, self.sent)
 
-        self.assertEqual(allevents, self.sent, "Elements don't match.")
+        events = self._fetchAllEvents()
+        events = [ev[1] for ev in events]
+
+        self.assertEqual(self.sent, events)
+
+    def testSyncAllPastEventsCapped(self):
+        """Test querying all events."""
+        time.sleep(0.5)  # Max time to persist the messages
+
+        events, capped = self._fetchEvents()
+        events = [ev[1] for ev in events]
+
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertTrue(len(self.sent) > len(events))
+
+        self.assertEqual(self.sent[:len(events)], events)
 
     def testSyncEventsSince(self):
         """Test querying events after a certain time."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event for event in self.querier.query()]
-        from_ = allevents[3][0]
-        events = [event[1] for event in self.querier.query(from_=from_)]
-        self.assertEqual([event[1] for event in allevents[4:]], events)
 
-    def testSyncEventsBefore(self):
-        """Test querying events before a certain time."""
-        time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event for event in self.querier.query()]
-        to = allevents[-3][0]
-        events = [event[1] for event in self.querier.query(to=to)]
-        self.assertEqual([event[1] for event in allevents[:-2]], events)
+        allevents = self._fetchAllEvents()
+        from_ = allevents[3][0]
+        events, capped = self._fetchEvents(from_=from_)
+        events = [ev[1] for ev in events]
 
-    def testSyncEventsBetween(self):
-        """Test querying events a slice of the events."""
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertTrue(len(self.sent) - 3 > len(events))
+
+        self.assertEqual(self.sent[4:len(events) + 4], events)
+
+    def testSyncEventsBeforeWithCap(self):
+        """Test querying events before a certain time. Result is capped."""
         time.sleep(0.5)  # Max time to persist the messages
-        allevents = [event for event in self.querier.query()]
+
+        allevents = self._fetchAllEvents()
+        to = allevents[-3][0]
+        events, capped = self._fetchEvents(to=to)
+        events = [ev[1] for ev in events]
+
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertEqual(100, len(events),
+                         "Expected to have capped events at 100 events.")
+
+        self.assertEqual(self.sent[:100], events)
+
+    def testSyncEventsBeforeNoCap(self):
+        """Test querying events before a certain time. Result is not capped."""
+        time.sleep(0.5)  # Max time to persist the messages
+
+        allevents = self._fetchAllEvents()
+        to = allevents[9][0]
+        events, capped = self._fetchEvents(to=to)
+        events = [ev[1] for ev in events]
+
+        self.assertFalse(capped)
+
+        self.assertEqual(10, len(events))
+        self.assertEqual(self.sent[:10], events)
+
+    def testSyncEventsBetweenWithCap(self):
+        """Test querying a slice of the events. Result is capped."""
+        time.sleep(0.5)  # Max time to persist the messages
+
+        allevents = self._fetchAllEvents()
         from_ = allevents[3][0]
         to = allevents[-3][0]
-        events = [event[1] for event in self.querier.query(from_=from_, to=to)]
-        self.assertEqual([event[1] for event in allevents[4:-2]], events)
+        events, capped = self._fetchEvents(from_=from_, to=to)
+        events = [ev[1] for ev in events]
+
+        # Assert we were capped
+        self.assertTrue(capped)
+        self.assertEqual(100, len(events),
+                         "Expected to have capped events at 100 events.")
+        allevdata = [ev[1] for ev in allevents]
+
+        self.assertEqual(events, [ev[1] for ev in allevents[4:(4 + 100)]])
+
+        self.assertEqual(self.sent[4:len(events) + 4], events)
 
     def testSyncNontExistentEvent(self):
         """Test when querying for non-existent event id."""
-        result = self.querier.query(from_="non-exist")
-        self.assertRaises(clients.EventQuerier.QueryException,
-                          list, result)
+        nonexistentevid = (b'', b'non-exist', b'non-exist2')
+
+        for evid1, evid2 in itertools.permutations(nonexistentevid, 2):
+            # Testing  various permutations of non-existing event id queries
+            self.querysock.send(b'QUERY', zmq.SNDMORE)  # Command
+            self.querysock.send(evid1, zmq.SNDMORE)     # From
+            self.querysock.send(evid2)                  # To
+            resp = self.querysock.recv()
+            self.assertTrue(resp.startswith(b'ERROR '))
+            self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
+
+    def testUnrecognizedRequest(self):
+        """Test how Rewind handles unrecognized request commands."""
+        self.querysock.send(b"UNKNOWN COMMAND")
+        data = self.querysock.recv()
+        self.assertTrue(data.startswith(b'ERROR'))
+        self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
+
+    def testUnrecognizedEnvelopedRequest(self):
+        """Test how Rewind handles unknown enveloped request commands."""
+        self.querysock.send(b"UNKNOWN COMMAND", zmq.SNDMORE)
+        self.querysock.send(b"additional data")
+        data = self.querysock.recv()
+        self.assertTrue(data.startswith(b'ERROR'))
+        self.assertFalse(self.querysock.getsockopt(zmq.RCVMORE))
 
     def tearDown(self):
         """Close Rewind test instance."""
-        self.query_socket.close()
+        self.querysock.close()
 
         self.assertTrue(self.rewind.isAlive(),
                         "Did rewind crash? Not running.")
@@ -361,3 +495,26 @@ class TestQuerying(unittest.TestCase):
                          "Rewind should not have been running. It was.")
 
         self.context.term()
+
+
+class TestIdGenerator(unittest.TestCase):
+
+    """Test `_IdGenerator`."""
+
+    def testRegenerationIfKeyExists(self):
+        """Test key-exist-check on regeneration.
+
+        Regeneration is done so seldom in regular tests that this check needs
+        to be executed specifically.
+
+        """
+        key_checker = mock.Mock()
+        key_checker.side_effect = [True, True, True, False]
+
+        generator = rewind._IdGenerator(key_checker)
+        key = generator.generate()
+
+        # Assert the returns key was checked for existence
+        key_checker.assert_called_with(key)
+
+        self.assertEqual(key_checker.call_count, 4)

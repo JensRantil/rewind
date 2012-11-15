@@ -440,11 +440,10 @@ class SQLiteEventStore(EventStore):
             count = res[0]
         if count == 0:
             return False
-        elif count == 1:
-            return True
         else:
-            msg = 'There multiple event instances of: {0}'.format(key)
-            raise RuntimeException(msg)
+            assert count in (0, 1), \
+                "Duplicate event ids detected: {0}".format(count)
+            return True
 
     def count(self):
         """Return the number of events in the db."""
@@ -521,10 +520,15 @@ class LogEventStore(EventStore):
         with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             if from_:
+                found_from = False
                 for line in f:
                     key, eventstr = line.rstrip('\n\r').split("\t")
                     if key == from_:
+                        found_from = True
                         break
+                if not found_from:
+                    msg = 'to={0}'.format(to)
+                    raise EventStore.EventKeyDoesNotExistError(msg)
 
             # Continue until 'to' (if given, that is)
             found_to = False
@@ -735,7 +739,8 @@ class RotatedEventStore(EventStore):
         if from_:
             frombatchno = self._find_batch_containing_event(from_)
             if frombatchno is None:
-                raise EventKeyDoesNotExistError('from_={0}'.format(from_))
+                msg = 'from_={0}'.format(from_)
+                raise EventStore.EventKeyDoesNotExistError(msg)
         else:
             frombatchno = 0
         if to:

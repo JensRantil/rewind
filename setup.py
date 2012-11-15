@@ -10,7 +10,7 @@ if py_version <= (2, 6):
 
 setup(
     name='rewind',
-    version='0.1.7',
+    version='0.2.0',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='GNU AGPL, version 3',
@@ -48,7 +48,6 @@ setup(
         "mock==0.8",
         "pep8==1.3.3",
         "pep257==0.2.0",
-        "rewind-client==0.1.2",
     ],
     test_suite="rewind.server.test",
     entry_points={

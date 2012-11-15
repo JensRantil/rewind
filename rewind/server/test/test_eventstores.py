@@ -243,15 +243,59 @@ class _TestEventStore:
         self.assertEqual(list(result), self.items[:-1])
 
     def testQueryBetween(self):
-        """Test to query events between to times."""
+        """Test to query events between two times."""
         result = self.store.get_events(from_=self.keys[1], to=self.keys[-2])
         self.assertEqual(list(result), self.items[2:-1])
+
+    def testQuerySingleEvent(self):
+        """Test to query a single event between two times."""
+        result = self.store.get_events(from_=self.keys[1], to=self.keys[2])
+        self.assertEqual(list(result), [self.items[2]])
 
     def testKeyExists(self):
         """Test `EventStore.key_exists(...)` behaviour."""
         for key in self.keys:
             self.assertTrue(self.store.key_exists(key),
                             "Key did not exist: {0}".format(key))
+
+        randomkey = "blaha the key"
+        self.assertTrue(randomkey not in self.keys)
+        self.assertFalse(self.store.key_exists(randomkey),
+                         "Expected key to not exist: {0}".format(randomkey))
+
+    def _testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys.
+
+        This method is not being executed for every `EventStore`. To run this
+        test, each event store must invoke this class function individually.
+
+        """
+        non_existing_key1 = "akey1"
+        non_existing_key2 = "akey2"
+        self.assertTrue(non_existing_key1 not in self.keys)
+        self.assertTrue(non_existing_key2 not in self.keys)
+        print("Method:", self)
+
+        exception = eventstores.EventStore.EventKeyDoesNotExistError
+
+        counter = 0
+        with self.assertRaises(exception):
+            for ev in self.store.get_events(from_=non_existing_key1):
+                counter += 1
+        self.assertEqual(counter, 0)
+
+        counter = 0
+        with self.assertRaises(exception):
+            for ev in self.store.get_events(to=non_existing_key1):
+                counter += 1
+        self.assertEqual(counter, 0)
+
+        counter = 0
+        with self.assertRaises(exception):
+            for ev in self.store.get_events(from_=non_existing_key1,
+                                            to=non_existing_key2):
+                counter += 1
+        self.assertEqual(counter, 0)
 
 
 class TestEventStore(unittest.TestCase):
@@ -277,7 +321,7 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
     """Test `SyncedRotationEventStores`."""
 
     # Number of events per batch
-    EVS_PER_BATCH = 5
+    EVS_PER_BATCH = 7
 
     def setUp(self):
         """Prepare each test."""
@@ -373,12 +417,33 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         """Test `RotatedEventStore.key_exists(...)`."""
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
-        if nkeys_in_last_batch > 0:
-            # No reasons to test if there were no events written to this batch
-            keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
-            for key in keys_in_last_batch:
-                self.assertTrue(self.store.key_exists(key),
-                                "Key did not exist: {0}".format(key))
+
+        # If this is not true, this test is useless. No reasons to test if
+        # there were no events written to this batch.
+        self.assertTrue(nkeys_in_last_batch > 0)
+
+        keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
+        for key in keys_in_last_batch:
+            self.assertTrue(self.store.key_exists(key),
+                            "Key did not exist: {0}".format(key))
+
+    def testEventKeyAlreadyExistError(self):
+        """Assert key duplicates are not possible."""
+        evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
+        nkeys_in_last_batch = len(self.keys) % evs_per_batch
+
+        # If this is tno true, this test is useless. No reasons to test if
+        # there were no events written to this batch.
+        self.assertTrue(nkeys_in_last_batch > 0)
+
+        keys_in_last_batch = self.keys[-nkeys_in_last_batch:]
+        randomdata = b"RANDOM DATA THIS IS"
+        for key in keys_in_last_batch:
+            # `SyncedRotatedEventStore` only checks the current opened event
+            # store.  That's why we only check keys from `self.keys3`
+            self.assertRaises(eventstores.EventStore.EventKeyAlreadyExistError,
+                              self.store.add_event, key, randomdata)
+            #self.store.add_event(key, randomdata)
 
     def _check_md5_is_correct(self, dirpath):
         print("Directory:", dirpath)
@@ -473,7 +538,6 @@ class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
         self.items = list(zip(self.keys, self.vals))
         self.keys3, self.vals3 = keys3, vals3
         self.estore_factory = estore_factory
-        self.mstore1 = mstore1
         self.mstore2 = mstore2
         self.mstore3 = mstore3
         self.mstore4 = mstore4
@@ -509,7 +573,31 @@ class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
         """
         for key in self.keys3:
             self.assertTrue(self.store.key_exists(key),
-                            "Key did not exist: {0}".format(key))
+                            "Expected key to exist: {0}".format(key))
+
+    def testLoggingUnidentifiedFiles(self):
+        """Test logging unidentified files.
+
+        Currently, the actual logging is not asserted. However, coverage tells
+        us that the appropriate code was executed.
+
+        """
+        mstore = eventstores.InMemoryEventStore()
+        estore_factory = mock.Mock(return_value=mstore)
+
+        with mock.patch('os.path.exists') as exists_mock, \
+                mock.patch('os.listdir') as listdir_mock:
+            exists_mock.return_value = True
+            listdir_mock.return_value = ['randomfile.mp3']
+            store = eventstores.RotatedEventStore(estore_factory,
+                                                  '/random_dir', 'eventdb')
+            self.assertTrue(listdir_mock.call_count > 0)
+
+        estore_factory.assert_called_once_with('/random_dir/eventdb.0')
+
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
 
 
 class TestLogEventStore(unittest.TestCase, _TestEventStore):
@@ -542,6 +630,20 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         self.assertRaises(eventstores.CorruptionError,
                           eventstores.LogEventStore,
                           self.tempfile.name)
+
+    def testKeyFormatCheck(self):
+        """Test the key format that this event store accepts."""
+        randomdata = b"RANDOM DATA"
+        self.assertRaises(ValueError, self.store.add_event, "a b", randomdata)
+
+        # Assert not raises ValueError
+        acceptable_keys = ["ab", "ab1", "ab-1", "123"]
+        for key in acceptable_keys:
+            self.store.add_event(key, randomdata)
+
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
 
     def tearDown(self):
         """Close and remove the temporary store."""
@@ -587,6 +689,20 @@ class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
                           eventstores.SQLiteEventStore,
                           self.tempfile.name)
 
+    def testEventOrderError(self):
+        """Assert `EventOrderError` is thrown on incorrect query."""
+        n = len(self.keys)
+        for from_ in range(n - 1):
+            for to in range(from_ + 1, n):
+                self.assertNotEqual(from_, to)
+                self.assertRaises(eventstores.EventOrderError,
+                                  self.store.get_events, self.keys[to],
+                                  self.keys[from_])
+
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
+
     def tearDown(self):
         """Close and remove temporary store used by tests."""
         self.store.close()
@@ -601,3 +717,24 @@ class TestInMemoryEventStore(unittest.TestCase, _TestEventStore):
         """Initialize an `InMemoryEventStore` used for testing."""
         self.store = eventstores.InMemoryEventStore()
         self._populate_store()
+
+    def testEventKeyAlreadyExistError(self):
+        """Assert key duplicates are not possible."""
+        randomdata = b"RANDOM DATA THIS IS"
+        for key in self.keys:
+            self.assertRaises(eventstores.EventStore.EventKeyAlreadyExistError,
+                              self.store.add_event, key, randomdata)
+
+    def testEventOrderError(self):
+        """Assert `EventOrderError` is thrown on incorrect query."""
+        n = len(self.keys)
+        for from_ in range(n - 1):
+            for to in range(from_ + 1, n):
+                self.assertNotEqual(from_, to)
+                self.assertRaises(eventstores.EventOrderError,
+                                  self.store.get_events, self.keys[to],
+                                  self.keys[from_])
+
+    def testNonExistingKeyQuery(self):
+        """Test behaviour when fetching non-existing keys."""
+        self._testNonExistingKeyQuery()
