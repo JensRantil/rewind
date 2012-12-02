@@ -572,7 +572,6 @@ class LogEventStore(EventStore):
             self._open()
 
     def _unsafe_key_exists(self, needle):
-        eventstrs = []
         with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             for line in f:
