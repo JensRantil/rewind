@@ -230,6 +230,25 @@ class EventStore(object):
         """Raised when querying with a key that does not exist."""
         pass
 
+    @staticmethod
+    def from_config(config, args, **options):
+        """Instantiate an event store.
+
+        If the implementation of this class method needs to instantiate other
+        event stores (to wrap them), it can use
+        `rewind.construct_eventstore(...)`.
+
+        Parameters:
+        config    -- the configuration file options read from file(s).
+        args      -- the parsed command line arguments given when executing
+                      Rewind.
+        **options -- various options given to the specific event store.
+
+        returns   -- an event store.
+
+        """
+        raise NotImplementedError("Should be implemented by subclass.")
+
     def add_event(self, key, event):
         """Add event and corresponding key to the store.
 
@@ -280,6 +299,31 @@ class InMemoryEventStore(EventStore):
     def __init__(self):
         self.keys = []
         self.events = {}
+
+    @staticmethod
+    def from_config(_config, _args, **options):
+        """Instantiate an in-memory event store from config.
+
+        If the implementation of this class method needs to instantiate other
+        event stores (to wrap them), it can use
+        `rewind.construct_eventstore(...)`.
+
+        Parameters:
+        _config   -- the configuration file options read from file(s). Not
+                      used.
+        _args     -- the parsed command line arguments given when executing
+                     Rewind. Not used.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option.
+
+        returns   -- an `InMemoryEventStore` event store.
+
+        """
+        for option in options:
+            msg = "Unknown config option to `InMemoryEventStore: {0}"
+            _logger.warn(msg.format(option))
+        return InMemoryEventStore()
 
     def add_event(self, key, event):
         """Add an event and its corresponding key to the store."""

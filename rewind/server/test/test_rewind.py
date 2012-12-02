@@ -16,6 +16,12 @@
 
 """Test overall Rewind execution."""
 from __future__ import print_function
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import itertools
 import re
@@ -30,6 +36,7 @@ import uuid
 import mock
 import zmq
 
+import rewind.server.eventstores as eventstores
 import rewind.server.rewind as rewind
 
 
@@ -111,6 +118,74 @@ class TestCommandLineExecution(unittest.TestCase):
         # 1. Datapath is not created in setUp()
         # 2. If this test fails, we will keep the datapath that was created.
         shutil.rmtree(datapath)
+
+
+class TestInitialization(unittest.TestCase):
+
+    """Test `rewind.construct_eventstore(...)` behaviour."""
+
+    def testInMemoryFallback(self):
+        """Test `construct_eventstore(...)` defaults to in-memory estore."""
+        estore = rewind.construct_eventstore(None, [])
+        self.assertIsInstance(estore, eventstores.InMemoryEventStore)
+
+    def testMissingDefaultSection(self):
+        """Test `construct_eventstore(...)` bails on no default section."""
+        config = configparser.ConfigParser()
+        self.assertRaises(rewind._ConfigurationError,
+                          rewind.construct_eventstore, config, [])
+
+    def testMissingConfigEventStoreSection(self):
+        """Test `construct_eventstore(...)` bails on missing class section."""
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "nonexistsection")
+        self.assertRaises(rewind._ConfigurationError,
+                          rewind.construct_eventstore, config, [])
+
+    def testMissingArgumentEventStoreSection(self):
+        """Test `construct_eventstore(...)` bails on missing arg section."""
+        config = configparser.ConfigParser()
+        self.assertRaises(rewind._ConfigurationError,
+                          rewind.construct_eventstore, config, [],
+                          "nonexistsection")
+
+    def testMissingEventStoreClass(self):
+        """Test `construct_eventstore(...)` bails on missing class path."""
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.add_section("estoresection")
+        self.assertRaises(rewind._ConfigurationError,
+                          rewind.construct_eventstore, config, [])
+
+    def testCreatingInMemoryStoreUsingConfig(self):
+        """Full test of `construct_eventstore(...)`."""
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.add_section("estoresection")
+
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.InMemoryEventStore")
+
+        estore = rewind.construct_eventstore(config, [])
+
+        self.assertIsInstance(estore, eventstores.InMemoryEventStore)
+
+    def testCreatingInMemoryStoreUsingConfigWithGivenSection(self):
+        """Test full test of `construct_eventstore(...)` given a section."""
+        config = configparser.ConfigParser()
+        config.add_section("estoresection")
+        # The 'general' section need not to be defined here since a section is
+        # given to `construct_eventstore(...)` below.
+
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.InMemoryEventStore")
+
+        estore = rewind.construct_eventstore(config, [], "estoresection")
+
+        self.assertIsInstance(estore, eventstores.InMemoryEventStore)
 
 
 class _RewindRunnerThread(threading.Thread):

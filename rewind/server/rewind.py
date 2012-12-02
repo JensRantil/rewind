@@ -18,8 +18,15 @@
 from __future__ import print_function
 from __future__ import absolute_import
 import argparse
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import hashlib
+import importlib
 import itertools
 import logging
 import os
@@ -230,6 +237,81 @@ def _zmq_socket_context(context, socket_type, bind_endpoints):
         socket.close()
 
 
+class _ConfigurationError(Exception):
+
+    """An error thrown when configuration of the application fails."""
+
+    def __init__(self, what):
+        self.what = what
+
+    def __str__(self):
+        return repr(self.what)
+
+
+def construct_eventstore(config, args, section=None):
+    """Construct the event store to write and write from/to.
+
+    The event store is constructed from an optionally given configuration file
+    and/or command line arguments. Command line arguments has higher
+    presendence over configuration file attributes.
+
+    If a defined event store is missing, `InMemoryEventStore` will be used and
+    a warning will be logged to stderr.
+
+    This function is considered public API since external event stores might
+    use it to load other (usually, underlying) event stores.
+
+    Arguments:
+    config  -- a configuration dictionary. Derived from
+                     `configparser.RawConfigParser`.
+    args    -- the arguments given at command line to Rewind.
+    section -- the config section to use for event store instantiation.
+
+    returns -- a new event store.
+
+    """
+    DEFAULT_SECTION = 'general'
+    ESTORE_CLASS_ATTRIBUTE = 'class'
+
+    if config is None:
+        _logger.warn("Using InMemoryEventStore. Events are not persisted."
+                     " See example config file on how to persist them.")
+        eventstore = eventstores.InMemoryEventStore()
+        return eventstore
+
+    if section is None:
+        if DEFAULT_SECTION not in config.sections():
+            raise _ConfigurationError("Missing default section, `general`.")
+        section = config.get(DEFAULT_SECTION, 'storage-backend')
+
+    if section not in config.sections():
+        msg = "The section for event store does not exist: {0}"
+        raise _ConfigurationError(msg.format(section))
+
+    if not config.has_option(section, ESTORE_CLASS_ATTRIBUTE):
+        errmsg = 'Configuration option `class` missing for section `{0}`.'
+        raise _ConfigurationError(errmsg.format(section))
+
+    classpath = config.get(section, ESTORE_CLASS_ATTRIBUTE)
+    classpath_pieces = classpath.split('.')
+    classname = classpath_pieces[-1]
+    modulepath = '.'.join(classpath_pieces[0:-1])
+
+    module = importlib.import_module(modulepath)
+
+    # Instantiating the event store in question using custom arguments
+    options = config.options(section)
+    if ESTORE_CLASS_ATTRIBUTE in options:
+        # Unnecessary argument
+        i = options.index(ESTORE_CLASS_ATTRIBUTE)
+        del options[i]
+    Class = getattr(module, classname)
+    customargs = {option: config.get(section, option) for option in options}
+    eventstore = Class.from_config(config, args, **customargs)
+
+    return eventstore
+
+
 def run(args):
     """Actually execute the program.
 
@@ -243,33 +325,19 @@ def run(args):
     returns -- a proposed exit code for the application.
 
     """
-    if args.datadir:
-        dbdir = os.path.join(args.datadir, 'db')
-        def db_creator(filename):
-            return eventstores.SQLiteEventStore(filename)
-        rotated_db_estore = eventstores.RotatedEventStore(db_creator, dbdir,
-                                                          'sqlite')
-
-        logdir = os.path.join(args.datadir, 'appendlog')
-        def log_creator(filename):
-            return eventstores.LogEventStore(filename)
-        rotated_log_estore = eventstores.RotatedEventStore(log_creator,
-                                                           logdir,
-                                                           'appendlog')
-
-        EVENTS_PER_BATCH = 30000
-        eventstore = eventstores.SyncedRotationEventStores(EVENTS_PER_BATCH)
-
-        # Important DB event store is added first. Otherwise, fast event
-        # querying will not be enabled.
-        eventstore.add_rotated_store(rotated_db_estore)
-        eventstore.add_rotated_store(rotated_log_estore)
-
-        # TODO: Make sure event stores are correctly mirrored
+    if args.configfile is not None:
+        config = configparser.SafeConfigParser()
+        # TODO: Add a default config file to try to read from home, and etc,
+        # directory?
+        config.read([args.configfile])
     else:
-        _logger.warn("Using InMemoryEventStore. Events are not persisted."
-                     " See --datadir parameter for further info.")
-        eventstore = eventstores.InMemoryEventStore()
+        config = None
+
+    try:
+        eventstore = construct_eventstore(config, args)
+    except _ConfigurationError as e:
+        _logger.exception("Could instantiate event store from config file.")
+        return
 
     with _zmq_context_context(3) as context, \
             _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints) \
@@ -313,6 +381,8 @@ def main(argv=None):
                              " Will be created if non-existent. Without this"
                              " parameter, events will be stored in-memory"
                              " only.")
+    parser.add_argument('--configfile', '-c', metavar='FILE',
+                        help="Configuration file.")
 
     query_group = parser.add_argument_group(
         title='Querying endpoints',

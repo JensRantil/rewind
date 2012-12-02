@@ -304,6 +304,9 @@ class TestEventStore(unittest.TestCase):
 
     def testStubs(self):
         """Make sure `EventStore` behaves the way we expect."""
+        self.assertRaises(NotImplementedError,
+                          eventstores.EventStore.from_config, None, None)
+
         estore = eventstores.EventStore()
         self.assertRaises(NotImplementedError, estore.add_event, b"key",
                           b"event")
