@@ -147,7 +147,7 @@ class _RewindRunner(object):
         try:
             events = self.eventstore.get_events(fro if fro else None,
                                                 to if to else None)
-        except eventstores.EventStore.EventKeyDoesNotExistError as e:
+        except eventstores.EventStore.EventKeyDoesNotExistError:
             _logger.exception("A client requested a key that does not"
                               " exist:")
             self.query_socket.send(b"ERROR Key did not exist")
