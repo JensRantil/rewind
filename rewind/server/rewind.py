@@ -339,7 +339,9 @@ def run(args):
         _logger.exception("Could instantiate event store from config file.")
         return
 
-    with _zmq_context_context(3) as context, \
+    # TODO: Make number of ZeroMQ threads configurable
+    N_ZMQ_THREADS = 3
+    with _zmq_context_context(N_ZMQ_THREADS) as context, \
             _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints) \
             as query_socket, \
             _zmq_socket_context(context, zmq.PUB,
