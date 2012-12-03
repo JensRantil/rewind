@@ -700,6 +700,28 @@ class TestLogEventStoreConfig(unittest.TestCase):
         shutil.rmtree(datapath)
 
 
+class TestInMemoryEventStoreConfig(unittest.TestCase):
+
+    """Test `InMemoryEventStore.from_config(...)."""
+
+    def testBasicCreation(self):
+        """Making sure we can create `InMemoryEventStore` from config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.InMemoryEventStore.from_config(None, None)
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testUnknownParameters(self):
+        """Making sure we handle unknown options in config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.InMemoryEventStore.from_config(None, None,
+                                                            random="yes")
+        estore.close()
+        shutil.rmtree(datapath)
+
+
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
     """Test `SQLiteEventStore`."""
