@@ -24,6 +24,7 @@ except ImportError:
     import configparser
 import contextlib
 import itertools
+import os.path
 import re
 import shutil
 import sys
@@ -103,9 +104,21 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
+        tempconfig = tempfile.NamedTemporaryFile()
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.add_section("estoresection")
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("estoresection", "path", os.path.join(datapath,
+                                                         "db.sqlite"))
+        config.write(tempconfig)
+        tempconfig.flush()
+
         args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
-                '--datadir', datapath]
+                '--configfile', tempconfig.name]
         print(" ".join(args))
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()

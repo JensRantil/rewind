@@ -382,11 +382,6 @@ def main(argv=None):
     parser.add_argument('--exit-codeword', metavar="MSG", dest="exit_message",
                         help="An incoming message that makes Rewind quit."
                              " Used for testing.")
-    parser.add_argument('--datadir', '-D', metavar="DIR",
-                        help="The directory where events will be persisted."
-                             " Will be created if non-existent. Without this"
-                             " parameter, events will be stored in-memory"
-                             " only.")
     parser.add_argument('--configfile', '-c', metavar='FILE',
                         help="Configuration file.")
 
