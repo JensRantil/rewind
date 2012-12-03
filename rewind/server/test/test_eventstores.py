@@ -667,6 +667,39 @@ class TestConfigurationError(unittest.TestCase):
         self.assertEquals(str(e), "'Something failed!'")
 
 
+class TestSQLiteEventStoreConfig(unittest.TestCase):
+
+    """Test `SQLiteEventStore.from_config(...)."""
+
+    def testBasicCreation(self):
+        """Making sure we can create `SQLiteEventStore` from config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        estore = eventstores.SQLiteEventStore.from_config(None, None,
+                                                          path=sqlitepath)
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testUnknownParameters(self):
+        """Making sure we handle unknown options in config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        estore = eventstores.SQLiteEventStore.from_config(None, None,
+                                                          path=sqlitepath,
+                                                          random="yes")
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testMissingOptions(self):
+        """Test missing config option behaviour."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        self.assertRaises(eventstores.ConfigurationError,
+                          eventstores.SQLiteEventStore.from_config, None,
+                          None)
+        shutil.rmtree(datapath)
+
+
 class TestLogEventStoreConfig(unittest.TestCase):
 
     """Test `LogEventStore.from_config(...)."""
@@ -724,7 +757,7 @@ class TestInMemoryEventStoreConfig(unittest.TestCase):
 
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
-    """Test `SQLiteEventStore`."""
+    """Test event store operations against an `SQLiteEventStore`."""
 
     def setUp(self):
         """Create and populate a temporary `_SQLiteEventStore`."""

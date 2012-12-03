@@ -425,6 +425,38 @@ class SQLiteEventStore(EventStore):
 
         self._path = path
 
+    @staticmethod
+    def from_config(_config, _args, **options):
+        """Instantiate an SQLite event store from config.
+
+        If the implementation of this class method needs to instantiate other
+        event stores (to wrap them), it can use
+        `rewind.construct_eventstore(...)`.
+
+        Parameters:
+        _config   -- the configuration file options read from file(s). Not
+                     used.
+        _args     -- the parsed command line arguments given when executing
+                     Rewind. Not used by this function.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `SQLiteEventStore`.
+
+        """
+        expected_args = ('path',)
+        for arg in expected_args:
+            if arg not in options:
+                msg = "Required option missing: {0}"
+                raise ConfigurationError(msg.format(arg))
+        for option in options:
+            if option not in expected_args:
+                msg = "Unknown config option to `SQLiteEventStore`: {0}"
+                _logger.warn(msg.format(option))
+        return SQLiteEventStore(options['path'])
+
     def add_event(self, key, event):
         """Add an event and its corresponding key to the store."""
         assert isinstance(key, str)
