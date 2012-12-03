@@ -129,6 +129,15 @@ class TestInitialization(unittest.TestCase):
         estore = rewind.construct_eventstore(None, [])
         self.assertIsInstance(estore, eventstores.InMemoryEventStore)
 
+    def testStringRepresentationOfConfigurationError(self):
+        """Test _ConfigurationError.__str__ behaviour.
+
+        It's not crucial behaviour, but always worth the coverage.
+
+        """
+        err = rewind._ConfigurationError("Bad string")
+        self.assertEquals(str(err), "'Bad string'")
+
     def testMissingDefaultSection(self):
         """Test `construct_eventstore(...)` bails on no default section."""
         config = configparser.ConfigParser()
