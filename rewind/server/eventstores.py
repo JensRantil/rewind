@@ -35,6 +35,18 @@ _logger = logging.getLogger(__name__)
 
 # Utility functions and classes used by event stores
 
+
+class ConfigurationError(Exception):
+
+    """An error thrown when configuration of the application fails."""
+
+    def __init__(self, what):
+        self.what = what
+
+    def __str__(self):
+        return repr(self.what)
+
+
 def _get_checksum_persister(path):
     directory = os.path.dirname(path)
     checksum_fname = os.path.join(directory, "checksums.md5")
@@ -534,6 +546,37 @@ class LogEventStore(EventStore):
 
         self._path = path
         self._open()
+
+    @staticmethod
+    def from_config(config, _args, **options):
+        """Instantiate an `LogEventStore` from config.
+
+        If the implementation of this class method needs to instantiate other
+        event stores (to wrap them), it can use
+        `rewind.construct_eventstore(...)`.
+
+        Parameters:
+        _config    -- the configuration file options read from file(s).
+        _args     -- the parsed command line arguments given when executing
+                     Rewind. Not used by this function.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `LogEventStore`.
+
+        """
+        expected_args = ('path',)
+        for arg in expected_args:
+            if arg not in options:
+                msg = "Required option missing: {0}"
+                raise ConfigurationError(msg.format(arg))
+        for option in options:
+            if option not in expected_args:
+                msg = "Unknown config option to `SQLiteEventStore`: {0}"
+                _logger.warn(msg.format(option))
+        return LogEventStore(options['path'])
 
     def _open(self):
         self.f = open(self._path, 'at')

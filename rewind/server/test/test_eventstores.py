@@ -653,6 +653,53 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         os.remove(self.tempfile.name)
 
 
+class TestConfigurationError(unittest.TestCase):
+
+    """Test `ConfigurationError` behvaiour.
+
+    This unittest is mostly to maximize test coverage.
+
+    """
+
+    def testStringRepresentation(self):
+        """Test string representation of `ConfigurationError`."""
+        e = eventstores.ConfigurationError("Something failed!")
+        self.assertEquals(str(e), "'Something failed!'")
+
+
+class TestLogEventStoreConfig(unittest.TestCase):
+
+    """Test `LogEventStore.from_config(...)."""
+
+    def testBasicCreation(self):
+        """Making sure we can create `LogEventStore` from config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.LogEventStore.from_config(None, None,
+                                                       path=sqlitepath)
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testUnknownParameters(self):
+        """Making sure we handle unknown options in config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.LogEventStore.from_config(None, None,
+                                                       path=sqlitepath,
+                                                       random="yes")
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testMissingOptions(self):
+        """Test missing config option behaviour."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        self.assertRaises(eventstores.ConfigurationError,
+                          eventstores.LogEventStore.from_config, None,
+                          None)
+        shutil.rmtree(datapath)
+
+
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
     """Test `SQLiteEventStore`."""

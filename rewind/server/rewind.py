@@ -307,7 +307,11 @@ def construct_eventstore(config, args, section=None):
         del options[i]
     Class = getattr(module, classname)
     customargs = {option: config.get(section, option) for option in options}
-    eventstore = Class.from_config(config, args, **customargs)
+    try:
+        eventstore = Class.from_config(config, args, **customargs)
+    except eventstores.ConfigurationError as e:
+        msg = "Could not instantiate `{0}`: {1}"
+        raise _ConfigurationError(msg.format(Class, e.what))
 
     return eventstore
 
