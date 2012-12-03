@@ -132,6 +132,40 @@ class TestCommandLineExecution(unittest.TestCase):
         # 2. If this test fails, we will keep the datapath that was created.
         shutil.rmtree(datapath)
 
+    def testIncorrectConfiguration(self):
+        """Testing starting using incorrect configuration."""
+        datapath = tempfile.mkdtemp()
+        print("Using datapath:", datapath)
+
+        tempconfig = tempfile.NamedTemporaryFile()
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.add_section("estoresection")
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        # Deliberately leaving 'path' here to simulate a configuration error
+        config.write(tempconfig)
+        tempconfig.flush()
+
+        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
+                '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
+                '--configfile', tempconfig.name]
+        print(" ".join(args))
+        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind.start()
+
+        time.sleep(1)
+        self.assertFalse(self.rewind.isAlive(),
+                         "Rewind was running for more than 1 second")
+        self.assertEquals(os.listdir(datapath), [],
+                          "Expected no file to have been created.")
+
+        # Not removing this in tearDown for two reasons:
+        # 1. Datapath is not created in setUp()
+        # 2. If this test fails, we will keep the datapath that was created.
+        shutil.rmtree(datapath)
+
 
 class TestInitialization(unittest.TestCase):
 
