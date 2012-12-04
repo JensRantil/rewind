@@ -18,8 +18,6 @@
 import importlib
 import logging
 
-import rewind.server.eventstores as eventstores
-
 
 _logger = logging.getLogger(__name__)
 
@@ -63,6 +61,9 @@ def construct_eventstore(config, args, section=None):
     if config is None:
         _logger.warn("Using InMemoryEventStore. Events are not persisted."
                      " See example config file on how to persist them.")
+        # XXX: This is to evade circular dependency between config and
+        #      eventstores.
+        import rewind.server.eventstores as eventstores
         eventstore = eventstores.InMemoryEventStore()
         return eventstore
 
