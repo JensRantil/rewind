@@ -26,7 +26,6 @@ except ImportError:
     import configparser
 import contextlib
 import hashlib
-import importlib
 import itertools
 import logging
 import os
@@ -36,6 +35,7 @@ import uuid
 
 import zmq
 
+import rewind.server.config as config
 import rewind.server.eventstores as eventstores
 
 
@@ -237,85 +237,6 @@ def _zmq_socket_context(context, socket_type, bind_endpoints):
         socket.close()
 
 
-class _ConfigurationError(Exception):
-
-    """An error thrown when configuration of the application fails."""
-
-    def __init__(self, what):
-        self.what = what
-
-    def __str__(self):
-        return repr(self.what)
-
-
-def construct_eventstore(config, args, section=None):
-    """Construct the event store to write and write from/to.
-
-    The event store is constructed from an optionally given configuration file
-    and/or command line arguments. Command line arguments has higher
-    presendence over configuration file attributes.
-
-    If a defined event store is missing, `InMemoryEventStore` will be used and
-    a warning will be logged to stderr.
-
-    This function is considered public API since external event stores might
-    use it to load other (usually, underlying) event stores.
-
-    Arguments:
-    config  -- a configuration dictionary. Derived from
-                     `configparser.RawConfigParser`.
-    args    -- the arguments given at command line to Rewind.
-    section -- the config section to use for event store instantiation.
-
-    returns -- a new event store.
-
-    """
-    DEFAULT_SECTION = 'general'
-    ESTORE_CLASS_ATTRIBUTE = 'class'
-
-    if config is None:
-        _logger.warn("Using InMemoryEventStore. Events are not persisted."
-                     " See example config file on how to persist them.")
-        eventstore = eventstores.InMemoryEventStore()
-        return eventstore
-
-    if section is None:
-        if DEFAULT_SECTION not in config.sections():
-            raise _ConfigurationError("Missing default section, `general`.")
-        section = config.get(DEFAULT_SECTION, 'storage-backend')
-
-    if section not in config.sections():
-        msg = "The section for event store does not exist: {0}"
-        raise _ConfigurationError(msg.format(section))
-
-    if not config.has_option(section, ESTORE_CLASS_ATTRIBUTE):
-        errmsg = 'Configuration option `class` missing for section `{0}`.'
-        raise _ConfigurationError(errmsg.format(section))
-
-    classpath = config.get(section, ESTORE_CLASS_ATTRIBUTE)
-    classpath_pieces = classpath.split('.')
-    classname = classpath_pieces[-1]
-    modulepath = '.'.join(classpath_pieces[0:-1])
-
-    module = importlib.import_module(modulepath)
-
-    # Instantiating the event store in question using custom arguments
-    options = config.options(section)
-    if ESTORE_CLASS_ATTRIBUTE in options:
-        # Unnecessary argument
-        i = options.index(ESTORE_CLASS_ATTRIBUTE)
-        del options[i]
-    Class = getattr(module, classname)
-    customargs = {option: config.get(section, option) for option in options}
-    try:
-        eventstore = Class.from_config(config, args, **customargs)
-    except eventstores.ConfigurationError as e:
-        msg = "Could not instantiate `{0}`: {1}"
-        raise _ConfigurationError(msg.format(Class, e.what))
-
-    return eventstore
-
-
 def run(args):
     """Actually execute the program.
 
@@ -330,16 +251,16 @@ def run(args):
 
     """
     if args.configfile is not None:
-        config = configparser.SafeConfigParser()
+        configfile = configparser.SafeConfigParser()
         # TODO: Add a default config file to try to read from home, and etc,
         # directory?
-        config.read([args.configfile])
+        configfile.read([args.configfile])
     else:
-        config = None
+        configfile = None
 
     try:
-        eventstore = construct_eventstore(config, args)
-    except _ConfigurationError as e:
+        eventstore = config.construct_eventstore(configfile, args)
+    except config.ConfigurationError as e:
         _logger.exception("Could instantiate event store from config file.")
         return
 

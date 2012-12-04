@@ -28,7 +28,6 @@ import unittest
 import mock
 
 import rewind.server.eventstores as eventstores
-import rewind.server.rewind as rewind
 
 
 class TestKeyValuePersister(unittest.TestCase):

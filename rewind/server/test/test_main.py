@@ -38,7 +38,7 @@ import mock
 import zmq
 
 import rewind.server.eventstores as eventstores
-import rewind.server.rewind as rewind
+import rewind.server.main as main
 
 
 @contextlib.contextmanager
@@ -167,83 +167,6 @@ class TestCommandLineExecution(unittest.TestCase):
         shutil.rmtree(datapath)
 
 
-class TestInitialization(unittest.TestCase):
-
-    """Test `rewind.construct_eventstore(...)` behaviour."""
-
-    def testInMemoryFallback(self):
-        """Test `construct_eventstore(...)` defaults to in-memory estore."""
-        estore = rewind.construct_eventstore(None, [])
-        self.assertIsInstance(estore, eventstores.InMemoryEventStore)
-
-    def testStringRepresentationOfConfigurationError(self):
-        """Test _ConfigurationError.__str__ behaviour.
-
-        It's not crucial behaviour, but always worth the coverage.
-
-        """
-        err = rewind._ConfigurationError("Bad string")
-        self.assertEquals(str(err), "'Bad string'")
-
-    def testMissingDefaultSection(self):
-        """Test `construct_eventstore(...)` bails on no default section."""
-        config = configparser.ConfigParser()
-        self.assertRaises(rewind._ConfigurationError,
-                          rewind.construct_eventstore, config, [])
-
-    def testMissingConfigEventStoreSection(self):
-        """Test `construct_eventstore(...)` bails on missing class section."""
-        config = configparser.ConfigParser()
-        config.add_section("general")
-        config.set("general", "storage-backend", "nonexistsection")
-        self.assertRaises(rewind._ConfigurationError,
-                          rewind.construct_eventstore, config, [])
-
-    def testMissingArgumentEventStoreSection(self):
-        """Test `construct_eventstore(...)` bails on missing arg section."""
-        config = configparser.ConfigParser()
-        self.assertRaises(rewind._ConfigurationError,
-                          rewind.construct_eventstore, config, [],
-                          "nonexistsection")
-
-    def testMissingEventStoreClass(self):
-        """Test `construct_eventstore(...)` bails on missing class path."""
-        config = configparser.ConfigParser()
-        config.add_section("general")
-        config.set("general", "storage-backend", "estoresection")
-        config.add_section("estoresection")
-        self.assertRaises(rewind._ConfigurationError,
-                          rewind.construct_eventstore, config, [])
-
-    def testCreatingInMemoryStoreUsingConfig(self):
-        """Full test of `construct_eventstore(...)`."""
-        config = configparser.ConfigParser()
-        config.add_section("general")
-        config.set("general", "storage-backend", "estoresection")
-        config.add_section("estoresection")
-
-        config.set("estoresection", "class",
-                   "rewind.server.eventstores.InMemoryEventStore")
-
-        estore = rewind.construct_eventstore(config, [])
-
-        self.assertIsInstance(estore, eventstores.InMemoryEventStore)
-
-    def testCreatingInMemoryStoreUsingConfigWithGivenSection(self):
-        """Test full test of `construct_eventstore(...)` given a section."""
-        config = configparser.ConfigParser()
-        config.add_section("estoresection")
-        # The 'general' section need not to be defined here since a section is
-        # given to `construct_eventstore(...)` below.
-
-        config.set("estoresection", "class",
-                   "rewind.server.eventstores.InMemoryEventStore")
-
-        estore = rewind.construct_eventstore(config, [], "estoresection")
-
-        self.assertIsInstance(estore, eventstores.InMemoryEventStore)
-
-
 class _RewindRunnerThread(threading.Thread):
 
     """A thread that runs a rewind instance.
@@ -274,7 +197,7 @@ class _RewindRunnerThread(threading.Thread):
 
         def exitcode_runner(*args, **kwargs):
             try:
-                thread.exit_code = rewind.main(*args, **kwargs)
+                thread.exit_code = main.main(*args, **kwargs)
             except SystemExit as e:
                 thread.exit_code = e.code
             else:
@@ -642,7 +565,7 @@ class TestIdGenerator(unittest.TestCase):
         key_checker = mock.Mock()
         key_checker.side_effect = [True, True, True, False]
 
-        generator = rewind._IdGenerator(key_checker)
+        generator = main._IdGenerator(key_checker)
         key = generator.generate()
 
         # Assert the returns key was checked for existence

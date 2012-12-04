@@ -52,7 +52,7 @@ setup(
     test_suite="rewind.server.test",
     entry_points={
         'console_scripts': [
-            'rewind = rewind.server.rewind:main',
+            'rewind = rewind.server.main:main',
         ]
     },
 )
