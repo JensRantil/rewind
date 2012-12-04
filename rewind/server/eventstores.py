@@ -246,10 +246,6 @@ class EventStore(object):
     def from_config(config, args, **options):
         """Instantiate an event store.
 
-        If the implementation of this class method needs to instantiate other
-        event stores (to wrap them), it can use
-        `rewind.construct_eventstore(...)`.
-
         Parameters:
         config    -- the configuration file options read from file(s).
         args      -- the parsed command line arguments given when executing
@@ -315,10 +311,6 @@ class InMemoryEventStore(EventStore):
     @staticmethod
     def from_config(_config, _args, **options):
         """Instantiate an in-memory event store from config.
-
-        If the implementation of this class method needs to instantiate other
-        event stores (to wrap them), it can use
-        `rewind.construct_eventstore(...)`.
 
         Parameters:
         _config   -- the configuration file options read from file(s). Not
@@ -428,10 +420,6 @@ class SQLiteEventStore(EventStore):
     @staticmethod
     def from_config(_config, _args, **options):
         """Instantiate an SQLite event store from config.
-
-        If the implementation of this class method needs to instantiate other
-        event stores (to wrap them), it can use
-        `rewind.construct_eventstore(...)`.
 
         Parameters:
         _config   -- the configuration file options read from file(s). Not
@@ -582,10 +570,6 @@ class LogEventStore(EventStore):
     @staticmethod
     def from_config(config, _args, **options):
         """Instantiate an `LogEventStore` from config.
-
-        If the implementation of this class method needs to instantiate other
-        event stores (to wrap them), it can use
-        `rewind.construct_eventstore(...)`.
 
         Parameters:
         _config    -- the configuration file options read from file(s).
