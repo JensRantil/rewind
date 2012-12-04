@@ -24,6 +24,7 @@ import base64
 import collections
 import contextlib
 import hashlib
+import importlib
 import itertools
 import logging
 import os
@@ -727,6 +728,40 @@ class RotatedEventStore(EventStore):
 
         self.estore = self._open_event_store()
 
+    @staticmethod
+    def from_config(config, _args, **options):
+        """Instantiate an `RotatedEventStore` from config.
+
+        Parameters:
+        _config    -- the configuration file options read from file(s).
+        _args     -- the parsed command line arguments given when executing
+                     Rewind. Not used by this function.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `RotatedEventStore`.
+
+        """
+        expected_args = ('prefix', 'realclass')
+        for arg in expected_args:
+            if arg not in options:
+                msg = "Required option missing: {0}"
+                raise rconfig.ConfigurationError(msg.format(arg))
+        # Not logging unrecognized options here, because they might be used
+        # by the real event store instantiated below.
+
+        classpath = options['realclass']
+        classpath_pieces = classpath.split('.')
+        classname = classpath_pieces[-1]
+        modulepath = '.'.join(classpath_pieces[0:-1])
+        module = importlib.import_module(modulepath)
+        estore_class = getattr(module, classname)
+
+        return RotatedEventStore(lambda fname: estore_class(fname),
+                                 options['path'], options['prefix'])
+
     def _determine_batchno(self):
         dirpath = self.dirpath
         prefix = self.prefix
@@ -898,6 +933,53 @@ class SyncedRotationEventStores(EventStore):
         self.events_per_batch = events_per_batch
         self.count = 0
         self.stores = []
+
+    @staticmethod
+    def from_config(config, args, **options):
+        """Instantiate an `SyncedRotationEventStores` from config.
+
+        Parameters:
+        config    -- the configuration file options read from file(s).
+        args      -- the parsed command line arguments given when executing
+                     Rewind. Not used by this function.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `SyncedRotationEventStores`.
+
+        """
+        required_args = ('storage-backends',)
+        optional_args = {'events_per_batch': 25000}
+        for arg in required_args:
+            if arg not in options:
+                msg = "Required option missing: {0}"
+                raise rconfig.ConfigurationError(msg.format(arg))
+        for option in options:
+            if option not in required_args and option not in optional_args:
+                msg = ("Unknown config option to `SyncedRotationEventStores`:"
+                       " {0}")
+                _logger.warn(msg.format(option))
+
+        if "events_per_batch" in options:
+            events_per_batch = int(options["events_per_batch"])
+        else:
+            events_per_batch = optional_args["events_per_batch"]
+
+        estore = SyncedRotationEventStores(events_per_batch)
+
+        for section in options['storage-backends'].split(' '):
+            try:
+                substore = rconfig.construct_eventstore(config, args, section)
+                estore.add_rotated_store(substore)
+            except Exception as e:
+                _logger.exception('Could not instantiate substore from'
+                                  ' section %s', section)
+                estore.close()
+                raise
+
+        return estore
 
     def add_rotated_store(self, rotated_store):
         """Add a `RotatedEventStore` that shall be rotated with the others."""
