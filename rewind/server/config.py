@@ -96,7 +96,7 @@ def construct_eventstore(config, args, section=None):
     customargs = {option: config.get(section, option) for option in options}
     try:
         eventstore = Class.from_config(config, args, **customargs)
-    except eventstores.ConfigurationError as e:
+    except ConfigurationError as e:
         msg = "Could not instantiate `{0}`: {1}"
         raise ConfigurationError(msg.format(Class, e.what))
 

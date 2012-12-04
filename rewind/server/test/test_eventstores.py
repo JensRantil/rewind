@@ -28,6 +28,7 @@ import unittest
 import mock
 
 import rewind.server.eventstores as eventstores
+import rewind.server.config as rconfig
 
 
 class TestKeyValuePersister(unittest.TestCase):
@@ -652,20 +653,6 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         os.remove(self.tempfile.name)
 
 
-class TestConfigurationError(unittest.TestCase):
-
-    """Test `ConfigurationError` behvaiour.
-
-    This unittest is mostly to maximize test coverage.
-
-    """
-
-    def testStringRepresentation(self):
-        """Test string representation of `ConfigurationError`."""
-        e = eventstores.ConfigurationError("Something failed!")
-        self.assertEquals(str(e), "'Something failed!'")
-
-
 class TestSQLiteEventStoreConfig(unittest.TestCase):
 
     """Test `SQLiteEventStore.from_config(...)."""
@@ -693,7 +680,7 @@ class TestSQLiteEventStoreConfig(unittest.TestCase):
         """Test missing config option behaviour."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'db.sqlite')
-        self.assertRaises(eventstores.ConfigurationError,
+        self.assertRaises(rconfig.ConfigurationError,
                           eventstores.SQLiteEventStore.from_config, None,
                           None)
         shutil.rmtree(datapath)
@@ -726,7 +713,7 @@ class TestLogEventStoreConfig(unittest.TestCase):
         """Test missing config option behaviour."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'db.sqlite')
-        self.assertRaises(eventstores.ConfigurationError,
+        self.assertRaises(rconfig.ConfigurationError,
                           eventstores.LogEventStore.from_config, None,
                           None)
         shutil.rmtree(datapath)

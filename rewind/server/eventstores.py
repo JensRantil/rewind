@@ -29,22 +29,12 @@ import logging
 import os
 import sqlite3
 
+import rewind.server.config as rconfig
 
 _logger = logging.getLogger(__name__)
 
 
 # Utility functions and classes used by event stores
-
-
-class ConfigurationError(Exception):
-
-    """An error thrown when configuration of the application fails."""
-
-    def __init__(self, what):
-        self.what = what
-
-    def __str__(self):
-        return repr(self.what)
 
 
 def _get_checksum_persister(path):
@@ -438,7 +428,7 @@ class SQLiteEventStore(EventStore):
         for arg in expected_args:
             if arg not in options:
                 msg = "Required option missing: {0}"
-                raise ConfigurationError(msg.format(arg))
+                raise rconfig.ConfigurationError(msg.format(arg))
         for option in options:
             if option not in expected_args:
                 msg = "Unknown config option to `SQLiteEventStore`: {0}"
@@ -587,7 +577,7 @@ class LogEventStore(EventStore):
         for arg in expected_args:
             if arg not in options:
                 msg = "Required option missing: {0}"
-                raise ConfigurationError(msg.format(arg))
+                raise rconfig.ConfigurationError(msg.format(arg))
         for option in options:
             if option not in expected_args:
                 msg = "Unknown config option to `SQLiteEventStore`: {0}"
