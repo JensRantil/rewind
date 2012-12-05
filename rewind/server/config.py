@@ -93,12 +93,12 @@ def construct_eventstore(config, args, section=None):
         # Unnecessary argument
         i = options.index(ESTORE_CLASS_ATTRIBUTE)
         del options[i]
-    Class = getattr(module, classname)
+    _class = getattr(module, classname)
     customargs = {option: config.get(section, option) for option in options}
     try:
-        eventstore = Class.from_config(config, args, **customargs)
+        eventstore = _class.from_config(config, args, **customargs)
     except ConfigurationError as e:
         msg = "Could not instantiate `{0}`: {1}"
-        raise ConfigurationError(msg.format(Class, e.what))
+        raise ConfigurationError(msg.format(_class, e.what))
 
     return eventstore
