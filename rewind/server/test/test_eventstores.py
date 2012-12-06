@@ -16,6 +16,13 @@
 
 """Tests of event stores."""
 from __future__ import print_function
+
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import hashlib
 import itertools
@@ -470,6 +477,156 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self.store = None
         for param in self.rotated_estore_params:
             self._check_md5_is_correct(param['dirpath'])
+
+
+class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
+
+    """Test instantiating `SyncedRotationEventStores` from config."""
+
+    def testCreatingCombinedRotatedLogFromConfigWithoutDefaults(self):
+        self._testCreateCombinedRotatedLogFromConfig(False)
+
+    def testCreatingCombinedRotatedLogFromConfigWithDefaults(self):
+        self._testCreateCombinedRotatedLogFromConfig(True)
+
+    def _testCreateCombinedRotatedLogFromConfig(self, defaults):
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("rotated_sqlite", "prefix", "sqlite")
+        config.set("rotated_sqlite", "path", path)
+
+        config.add_section("rotated_appendlog")
+        config.set("rotated_appendlog", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_appendlog", "realclass",
+                   "rewind.server.eventstores.LogEventStore")
+        config.set("rotated_appendlog", "prefix", "appendlog")
+        config.set("rotated_appendlog", "path", path)
+
+        config.add_section("synced_rotator")
+        config.set("synced_rotator", "class",
+                   "rewind.server.eventstores.SyncedRotationEventStores")
+        config.set("synced_rotator", "storage-backends",
+                   "rotated_sqlite rotated_appendlog")
+        if not defaults:
+            config.set("synced_rotator", "events_per_batch", "25000")
+
+        # Random option to have coverage of logging of unknown options
+        config.set("synced_rotator", "foo", "bar")
+
+        estore = rconfig.construct_eventstore(config, [], "synced_rotator")
+
+        self.assertIsInstance(estore, eventstores.SyncedRotationEventStores)
+
+        shutil.rmtree(path)
+
+    def testCreatingSyncedRotatedLogFromConfigFromConfig(self):
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("rotated_sqlite", "prefix", "sqlite")
+        config.set("rotated_sqlite", "path", path)
+
+        estore = rconfig.construct_eventstore(config, [], "rotated_sqlite")
+
+        self.assertIsInstance(estore, eventstores.RotatedEventStore)
+
+        shutil.rmtree(path)
+
+    def testFailCreatingSyncedRotatedLogFromConfigFromConfig(self):
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        # Not setting 'prefix' to force an Exception
+        config.set("rotated_sqlite", "path", path)
+
+        self.assertRaises(rconfig.ConfigurationError,
+                          rconfig.construct_eventstore, config, [],
+                          "rotated_sqlite")
+
+        shutil.rmtree(path)
+
+    def testFailCreatingCombinedRotatedLogFromConfig(self):
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_appendlog")
+        config.set("rotated_appendlog", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        # Deliberately leaving out `realclass`
+        config.set("rotated_appendlog", "prefix", "appendlog")
+        config.set("rotated_appendlog", "path", path)
+
+        config.add_section("synced_rotator")
+        config.set("synced_rotator", "class",
+                   "rewind.server.eventstores.SyncedRotationEventStores")
+        config.set("synced_rotator", "storage-backends",
+                   "rotated_appendlog")
+        config.set("synced_rotator", "events_per_batch", "25000")
+
+        self.assertRaises(rconfig.ConfigurationError,
+                          rconfig.construct_eventstore, config, [],
+                          "synced_rotator")
+
+        shutil.rmtree(path)
+
+    def testFailCreatingSubeventStore(self):
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("rotated_sqlite", "prefix", "sqlite")
+        config.set("rotated_sqlite", "path", path)
+
+        config.add_section("rotated_appendlog")
+        config.set("rotated_appendlog", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_appendlog", "realclass",
+                   "rewind.server.eventstores.LogEventStore")
+        config.set("rotated_appendlog", "prefix", "appendlog")
+        config.set("rotated_appendlog", "path", path)
+
+        config.add_section("synced_rotator")
+        config.set("synced_rotator", "class",
+                   "rewind.server.eventstores.SyncedRotationEventStores")
+        # Not setting `storage-backends` to force ConfigurationError
+        config.set("synced_rotator", "events_per_batch", "25000")
+
+        self.assertRaises(rconfig.ConfigurationError,
+                          rconfig.construct_eventstore, config, [],
+                          "synced_rotator")
+
+        shutil.rmtree(path)
 
 
 class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
