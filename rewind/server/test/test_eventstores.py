@@ -484,12 +484,25 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
     """Test instantiating `SyncedRotationEventStores` from config."""
 
     def testCreatingCombinedRotatedLogFromConfigWithoutDefaults(self):
+        """Creating combined rotated store from config without defaults."""
         self._testCreateCombinedRotatedLogFromConfig(False)
 
     def testCreatingCombinedRotatedLogFromConfigWithDefaults(self):
+        """Creating combined rotated store from config with defaults."""
         self._testCreateCombinedRotatedLogFromConfig(True)
 
     def _testCreateCombinedRotatedLogFromConfig(self, defaults):
+        """Creating combined rotated store from config.
+
+        This class function is a helper for the actual tests.
+
+        Parameters:
+        defaults -- whether default values should be used or not for
+                    `SyncedRotationEventStores` instantiation. Can be used to
+                    toggle execution of different conditional branches to
+                    improve coverage.
+
+        """
         path = tempfile.mkdtemp()
         print("Using temporary directory:", path)
 
@@ -529,6 +542,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         shutil.rmtree(path)
 
     def testCreatingSyncedRotatedLogFromConfigFromConfig(self):
+        """Create a `RotatedEventStore` from config."""
         path = tempfile.mkdtemp()
         print("Using temporary directory:", path)
 
@@ -549,6 +563,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         shutil.rmtree(path)
 
     def testFailCreatingSyncedRotatedLogFromConfigFromConfig(self):
+        """Test parameter checking on `RotatedEventStore` instantiation."""
         path = tempfile.mkdtemp()
         print("Using temporary directory:", path)
 
@@ -569,6 +584,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         shutil.rmtree(path)
 
     def testFailCreatingCombinedRotatedLogFromConfig(self):
+        """Test option checking of `SyncedRotationEventStores` config."""
         path = tempfile.mkdtemp()
         print("Using temporary directory:", path)
 
@@ -595,6 +611,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         shutil.rmtree(path)
 
     def testFailCreatingSubeventStore(self):
+        """Test option checking of sub/child event store configs."""
         path = tempfile.mkdtemp()
         print("Using temporary directory:", path)
 
