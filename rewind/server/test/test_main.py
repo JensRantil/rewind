@@ -104,7 +104,7 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
-        tempconfig = tempfile.NamedTemporaryFile()
+        tempconfig = tempfile.NamedTemporaryFile('w')
         config = configparser.ConfigParser()
         config.add_section("general")
         config.set("general", "storage-backend", "estoresection")
@@ -137,7 +137,7 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
-        tempconfig = tempfile.NamedTemporaryFile()
+        tempconfig = tempfile.NamedTemporaryFile('w')
         config = configparser.ConfigParser()
         config.add_section("general")
         config.set("general", "storage-backend", "estoresection")
