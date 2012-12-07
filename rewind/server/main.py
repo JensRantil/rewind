@@ -18,6 +18,12 @@
 from __future__ import print_function
 from __future__ import absolute_import
 import argparse
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import hashlib
 import itertools
@@ -29,6 +35,7 @@ import uuid
 
 import zmq
 
+import rewind.server.config as config
 import rewind.server.eventstores as eventstores
 
 
@@ -243,35 +250,23 @@ def run(args):
     returns -- a proposed exit code for the application.
 
     """
-    if args.datadir:
-        dbdir = os.path.join(args.datadir, 'db')
-        def db_creator(filename):
-            return eventstores.SQLiteEventStore(filename)
-        rotated_db_estore = eventstores.RotatedEventStore(db_creator, dbdir,
-                                                          'sqlite')
-
-        logdir = os.path.join(args.datadir, 'appendlog')
-        def log_creator(filename):
-            return eventstores.LogEventStore(filename)
-        rotated_log_estore = eventstores.RotatedEventStore(log_creator,
-                                                           logdir,
-                                                           'appendlog')
-
-        EVENTS_PER_BATCH = 30000
-        eventstore = eventstores.SyncedRotationEventStores(EVENTS_PER_BATCH)
-
-        # Important DB event store is added first. Otherwise, fast event
-        # querying will not be enabled.
-        eventstore.add_rotated_store(rotated_db_estore)
-        eventstore.add_rotated_store(rotated_log_estore)
-
-        # TODO: Make sure event stores are correctly mirrored
+    if args.configfile is not None:
+        configfile = configparser.SafeConfigParser()
+        # TODO: Add a default config file to try to read from home, and etc,
+        # directory?
+        configfile.read([args.configfile])
     else:
-        _logger.warn("Using InMemoryEventStore. Events are not persisted."
-                     " See --datadir parameter for further info.")
-        eventstore = eventstores.InMemoryEventStore()
+        configfile = None
 
-    with _zmq_context_context(3) as context, \
+    try:
+        eventstore = config.construct_eventstore(configfile, args)
+    except config.ConfigurationError as e:
+        _logger.exception("Could instantiate event store from config file.")
+        return
+
+    # TODO: Make number of ZeroMQ threads configurable
+    N_ZMQ_THREADS = 3
+    with _zmq_context_context(N_ZMQ_THREADS) as context, \
             _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints) \
             as query_socket, \
             _zmq_socket_context(context, zmq.PUB,
@@ -308,11 +303,8 @@ def main(argv=None):
     parser.add_argument('--exit-codeword', metavar="MSG", dest="exit_message",
                         help="An incoming message that makes Rewind quit."
                              " Used for testing.")
-    parser.add_argument('--datadir', '-D', metavar="DIR",
-                        help="The directory where events will be persisted."
-                             " Will be created if non-existent. Without this"
-                             " parameter, events will be stored in-memory"
-                             " only.")
+    parser.add_argument('--configfile', '-c', metavar='FILE',
+                        help="Configuration file.")
 
     query_group = parser.add_argument_group(
         title='Querying endpoints',

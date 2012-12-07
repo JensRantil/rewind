@@ -16,8 +16,15 @@
 
 """Test overall Rewind execution."""
 from __future__ import print_function
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import itertools
+import os.path
 import re
 import shutil
 import sys
@@ -30,7 +37,8 @@ import uuid
 import mock
 import zmq
 
-import rewind.server.rewind as rewind
+import rewind.server.eventstores as eventstores
+import rewind.server.main as main
 
 
 @contextlib.contextmanager
@@ -96,9 +104,21 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
+        tempconfig = tempfile.NamedTemporaryFile('w')
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.add_section("estoresection")
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("estoresection", "path", os.path.join(datapath,
+                                                         "db.sqlite"))
+        config.write(tempconfig)
+        tempconfig.flush()
+
         args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
                 '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
-                '--datadir', datapath]
+                '--configfile', tempconfig.name]
         print(" ".join(args))
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
@@ -106,6 +126,40 @@ class TestCommandLineExecution(unittest.TestCase):
         time.sleep(3)
         self.assertTrue(self.rewind.isAlive(),
                         "Rewind was not running for more than 3 seconds")
+
+        # Not removing this in tearDown for two reasons:
+        # 1. Datapath is not created in setUp()
+        # 2. If this test fails, we will keep the datapath that was created.
+        shutil.rmtree(datapath)
+
+    def testIncorrectConfiguration(self):
+        """Testing starting using incorrect configuration."""
+        datapath = tempfile.mkdtemp()
+        print("Using datapath:", datapath)
+
+        tempconfig = tempfile.NamedTemporaryFile('w')
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.add_section("estoresection")
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        # Deliberately leaving 'path' here to simulate a configuration error
+        config.write(tempconfig)
+        tempconfig.flush()
+
+        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
+                '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
+                '--configfile', tempconfig.name]
+        print(" ".join(args))
+        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
+        self.rewind.start()
+
+        time.sleep(1)
+        self.assertFalse(self.rewind.isAlive(),
+                         "Rewind was running for more than 1 second")
+        self.assertEquals(os.listdir(datapath), [],
+                          "Expected no file to have been created.")
 
         # Not removing this in tearDown for two reasons:
         # 1. Datapath is not created in setUp()
@@ -143,7 +197,7 @@ class _RewindRunnerThread(threading.Thread):
 
         def exitcode_runner(*args, **kwargs):
             try:
-                thread.exit_code = rewind.main(*args, **kwargs)
+                thread.exit_code = main.main(*args, **kwargs)
             except SystemExit as e:
                 thread.exit_code = e.code
             else:
@@ -511,7 +565,7 @@ class TestIdGenerator(unittest.TestCase):
         key_checker = mock.Mock()
         key_checker.side_effect = [True, True, True, False]
 
-        generator = rewind._IdGenerator(key_checker)
+        generator = main._IdGenerator(key_checker)
         key = generator.generate()
 
         # Assert the returns key was checked for existence
