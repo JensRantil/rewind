@@ -315,9 +315,8 @@ class InMemoryEventStore(EventStore):
         returns   -- an `InMemoryEventStore` event store.
 
         """
-        for option in options:
-            msg = "Unknown config option to `InMemoryEventStore: {0}"
-            _logger.warn(msg.format(option))
+        rconfig.check_config_options("InMemoryEventStore", tuple(), tuple(),
+                                     options)
         return InMemoryEventStore()
 
     def add_event(self, key, event):
@@ -426,14 +425,8 @@ class SQLiteEventStore(EventStore):
 
         """
         expected_args = ('path',)
-        for arg in expected_args:
-            if arg not in options:
-                msg = "Required option missing: {0}"
-                raise rconfig.ConfigurationError(msg.format(arg))
-        for option in options:
-            if option not in expected_args:
-                msg = "Unknown config option to `SQLiteEventStore`: {0}"
-                _logger.warn(msg.format(option))
+        rconfig.check_config_options("SQLiteEventStore", expected_args,
+                                     tuple(), options)
         return SQLiteEventStore(options['path'])
 
     def add_event(self, key, event):
@@ -575,14 +568,8 @@ class LogEventStore(EventStore):
 
         """
         expected_args = ('path',)
-        for arg in expected_args:
-            if arg not in options:
-                msg = "Required option missing: {0}"
-                raise rconfig.ConfigurationError(msg.format(arg))
-        for option in options:
-            if option not in expected_args:
-                msg = "Unknown config option to `SQLiteEventStore`: {0}"
-                _logger.warn(msg.format(option))
+        rconfig.check_config_options("LogEventStore", expected_args, tuple(),
+                                     options)
         return LogEventStore(options['path'])
 
     def _open(self):
@@ -952,15 +939,9 @@ class SyncedRotationEventStores(EventStore):
         """
         required_args = ('storage-backends',)
         optional_args = {'events_per_batch': 25000}
-        for arg in required_args:
-            if arg not in options:
-                msg = "Required option missing: {0}"
-                raise rconfig.ConfigurationError(msg.format(arg))
-        for option in options:
-            if option not in required_args and option not in optional_args:
-                msg = ("Unknown config option to `SyncedRotationEventStores`:"
-                       " {0}")
-                _logger.warn(msg.format(option))
+        rconfig.check_config_options("SyncedRotationEventStores",
+                                     required_args,
+                                     tuple(optional_args.keys()), options)
 
         if "events_per_batch" in options:
             events_per_batch = int(options["events_per_batch"])

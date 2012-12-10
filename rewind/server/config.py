@@ -102,3 +102,31 @@ def construct_eventstore(config, args, section=None):
         raise ConfigurationError(msg.format(_class, e.what))
 
     return eventstore
+
+
+def check_config_options(_class, required_options, optional_options, options):
+    """Helper method to check options.
+
+    Arguments:
+    _class           -- the original class that takes received the options.
+    required_options -- the options that are required. If they are not
+                        present, a ConfigurationError is raised. Given as a
+                        tuple.
+    optional_options -- the options that are optional. Given options that are
+                        not present in `optional_options` nor in
+                        `required_options` will be logged as unrecognized.
+                        Given as a tuple.
+    options          -- a dictionary of given options.
+
+    Raises:
+    ConfigurationError -- if any required option is missing.
+
+    """
+    for opt in required_options:
+        if opt not in options:
+            msg = "Required option missing: {0}"
+            raise ConfigurationError(msg.format(opt))
+    for opt in options:
+        if opt not in (required_options + optional_options):
+            msg = "Unknown config option to `{0}`: {1}"
+            _logger.warn(msg.format(_class, opt))
