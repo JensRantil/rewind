@@ -15,11 +15,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """Configuration file utilities."""
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import importlib
 import logging
 
 
 _logger = logging.getLogger(__name__)
+
+
+DEFAULT_SECTION = 'general'
 
 
 class ConfigurationError(Exception):
@@ -33,7 +42,7 @@ class ConfigurationError(Exception):
         return repr(self.what)
 
 
-def construct_eventstore(config, args, section=None):
+def construct_eventstore(config, section=None):
     """Construct the event store to write and write from/to.
 
     The event store is constructed from an optionally given configuration file
@@ -49,13 +58,11 @@ def construct_eventstore(config, args, section=None):
     Arguments:
     config  -- a configuration dictionary. Derived from
                      `configparser.RawConfigParser`.
-    args    -- the arguments given at command line to Rewind.
     section -- the config section to use for event store instantiation.
 
     returns -- a new event store.
 
     """
-    DEFAULT_SECTION = 'general'
     ESTORE_CLASS_ATTRIBUTE = 'class'
 
     if config is None:
@@ -70,7 +77,16 @@ def construct_eventstore(config, args, section=None):
     if section is None:
         if DEFAULT_SECTION not in config.sections():
             raise ConfigurationError("Missing default section, `general`.")
-        section = config.get(DEFAULT_SECTION, 'storage-backend')
+        try:
+            section = config.get(DEFAULT_SECTION, 'storage-backend')
+        except configparser.NoOptionError:
+            _logger.warn("Using InMemoryEventStore. Events are not persisted."
+                         " See example config file on how to persist them.")
+            # XXX: This is to evade circular dependency between config and
+            #      eventstores.
+            import rewind.server.eventstores as eventstores
+            eventstore = eventstores.InMemoryEventStore()
+            return eventstore
 
     if section not in config.sections():
         msg = "The section for event store does not exist: {0}"
@@ -96,7 +112,7 @@ def construct_eventstore(config, args, section=None):
     _class = getattr(module, classname)
     customargs = {option: config.get(section, option) for option in options}
     try:
-        eventstore = _class.from_config(config, args, **customargs)
+        eventstore = _class.from_config(config, **customargs)
     except ConfigurationError as e:
         msg = "Could not instantiate `{0}`: {1}"
         raise ConfigurationError(msg.format(_class, e.what))

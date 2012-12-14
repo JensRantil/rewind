@@ -312,7 +312,7 @@ class TestEventStore(unittest.TestCase):
     def testStubs(self):
         """Make sure `EventStore` behaves the way we expect."""
         self.assertRaises(NotImplementedError,
-                          eventstores.EventStore.from_config, None, None)
+                          eventstores.EventStore.from_config, None)
 
         estore = eventstores.EventStore()
         self.assertRaises(NotImplementedError, estore.add_event, b"key",
@@ -535,7 +535,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         # Random option to have coverage of logging of unknown options
         config.set("synced_rotator", "foo", "bar")
 
-        estore = rconfig.construct_eventstore(config, [], "synced_rotator")
+        estore = rconfig.construct_eventstore(config, "synced_rotator")
 
         self.assertIsInstance(estore, eventstores.SyncedRotationEventStores)
 
@@ -556,7 +556,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         config.set("rotated_sqlite", "prefix", "sqlite")
         config.set("rotated_sqlite", "path", path)
 
-        estore = rconfig.construct_eventstore(config, [], "rotated_sqlite")
+        estore = rconfig.construct_eventstore(config, "rotated_sqlite")
 
         self.assertIsInstance(estore, eventstores.RotatedEventStore)
 
@@ -578,7 +578,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         config.set("rotated_sqlite", "path", path)
 
         self.assertRaises(rconfig.ConfigurationError,
-                          rconfig.construct_eventstore, config, [],
+                          rconfig.construct_eventstore, config,
                           "rotated_sqlite")
 
         shutil.rmtree(path)
@@ -605,7 +605,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         config.set("synced_rotator", "events_per_batch", "25000")
 
         self.assertRaises(rconfig.ConfigurationError,
-                          rconfig.construct_eventstore, config, [],
+                          rconfig.construct_eventstore, config,
                           "synced_rotator")
 
         shutil.rmtree(path)
@@ -640,7 +640,7 @@ class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
         config.set("synced_rotator", "events_per_batch", "25000")
 
         self.assertRaises(rconfig.ConfigurationError,
-                          rconfig.construct_eventstore, config, [],
+                          rconfig.construct_eventstore, config,
                           "synced_rotator")
 
         shutil.rmtree(path)
@@ -835,7 +835,7 @@ class TestSQLiteEventStoreConfig(unittest.TestCase):
         """Making sure we can create `SQLiteEventStore` from config."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'db.sqlite')
-        estore = eventstores.SQLiteEventStore.from_config(None, None,
+        estore = eventstores.SQLiteEventStore.from_config(None,
                                                           path=sqlitepath)
         estore.close()
         shutil.rmtree(datapath)
@@ -844,7 +844,7 @@ class TestSQLiteEventStoreConfig(unittest.TestCase):
         """Making sure we handle unknown options in config."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'db.sqlite')
-        estore = eventstores.SQLiteEventStore.from_config(None, None,
+        estore = eventstores.SQLiteEventStore.from_config(None,
                                                           path=sqlitepath,
                                                           random="yes")
         estore.close()
@@ -855,8 +855,7 @@ class TestSQLiteEventStoreConfig(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'db.sqlite')
         self.assertRaises(rconfig.ConfigurationError,
-                          eventstores.SQLiteEventStore.from_config, None,
-                          None)
+                          eventstores.SQLiteEventStore.from_config, None)
         shutil.rmtree(datapath)
 
 
@@ -868,7 +867,7 @@ class TestLogEventStoreConfig(unittest.TestCase):
         """Making sure we can create `LogEventStore` from config."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'log.txt')
-        estore = eventstores.LogEventStore.from_config(None, None,
+        estore = eventstores.LogEventStore.from_config(None,
                                                        path=sqlitepath)
         estore.close()
         shutil.rmtree(datapath)
@@ -877,7 +876,7 @@ class TestLogEventStoreConfig(unittest.TestCase):
         """Making sure we handle unknown options in config."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'log.txt')
-        estore = eventstores.LogEventStore.from_config(None, None,
+        estore = eventstores.LogEventStore.from_config(None,
                                                        path=sqlitepath,
                                                        random="yes")
         estore.close()
@@ -888,8 +887,7 @@ class TestLogEventStoreConfig(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'db.sqlite')
         self.assertRaises(rconfig.ConfigurationError,
-                          eventstores.LogEventStore.from_config, None,
-                          None)
+                          eventstores.LogEventStore.from_config, None)
         shutil.rmtree(datapath)
 
 
@@ -901,7 +899,7 @@ class TestInMemoryEventStoreConfig(unittest.TestCase):
         """Making sure we can create `InMemoryEventStore` from config."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'log.txt')
-        estore = eventstores.InMemoryEventStore.from_config(None, None)
+        estore = eventstores.InMemoryEventStore.from_config(None)
         estore.close()
         shutil.rmtree(datapath)
 
@@ -909,7 +907,7 @@ class TestInMemoryEventStoreConfig(unittest.TestCase):
         """Making sure we handle unknown options in config."""
         datapath = tempfile.mkdtemp()
         sqlitepath = os.path.join(datapath, 'log.txt')
-        estore = eventstores.InMemoryEventStore.from_config(None, None,
+        estore = eventstores.InMemoryEventStore.from_config(None,
                                                             random="yes")
         estore.close()
         shutil.rmtree(datapath)

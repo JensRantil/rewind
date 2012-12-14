@@ -234,13 +234,11 @@ class EventStore(object):
         pass
 
     @staticmethod
-    def from_config(config, args, **options):
+    def from_config(config, **options):
         """Instantiate an event store.
 
         Parameters:
         config    -- the configuration file options read from file(s).
-        args      -- the parsed command line arguments given when executing
-                      Rewind.
         **options -- various options given to the specific event store.
 
         returns   -- an event store.
@@ -300,14 +298,12 @@ class InMemoryEventStore(EventStore):
         self.events = {}
 
     @staticmethod
-    def from_config(_config, _args, **options):
+    def from_config(_config, **options):
         """Instantiate an in-memory event store from config.
 
         Parameters:
         _config   -- the configuration file options read from file(s). Not
                       used.
-        _args     -- the parsed command line arguments given when executing
-                     Rewind. Not used.
         **options -- various options given to the specific event store. Shall
                      not be used with this event store. Warning will be logged
                      for every extra non-recognized option.
@@ -408,14 +404,12 @@ class SQLiteEventStore(EventStore):
         self._path = path
 
     @staticmethod
-    def from_config(_config, _args, **options):
+    def from_config(_config, **options):
         """Instantiate an SQLite event store from config.
 
         Parameters:
         _config   -- the configuration file options read from file(s). Not
                      used.
-        _args     -- the parsed command line arguments given when executing
-                     Rewind. Not used by this function.
         **options -- various options given to the specific event store. Shall
                      not be used with this event store. Warning will be logged
                      for every extra non-recognized option. The only required
@@ -552,13 +546,11 @@ class LogEventStore(EventStore):
         self._open()
 
     @staticmethod
-    def from_config(config, _args, **options):
+    def from_config(config, **options):
         """Instantiate an `LogEventStore` from config.
 
         Parameters:
         _config    -- the configuration file options read from file(s).
-        _args     -- the parsed command line arguments given when executing
-                     Rewind. Not used by this function.
         **options -- various options given to the specific event store. Shall
                      not be used with this event store. Warning will be logged
                      for every extra non-recognized option. The only required
@@ -716,13 +708,11 @@ class RotatedEventStore(EventStore):
         self.estore = self._open_event_store()
 
     @staticmethod
-    def from_config(config, _args, **options):
+    def from_config(config, **options):
         """Instantiate an `RotatedEventStore` from config.
 
         Parameters:
         _config    -- the configuration file options read from file(s).
-        _args     -- the parsed command line arguments given when executing
-                     Rewind. Not used by this function.
         **options -- various options given to the specific event store. Shall
                      not be used with this event store. Warning will be logged
                      for every extra non-recognized option. The only required
@@ -922,13 +912,11 @@ class SyncedRotationEventStores(EventStore):
         self.stores = []
 
     @staticmethod
-    def from_config(config, args, **options):
+    def from_config(config, **options):
         """Instantiate an `SyncedRotationEventStores` from config.
 
         Parameters:
         config    -- the configuration file options read from file(s).
-        args      -- the parsed command line arguments given when executing
-                     Rewind. Not used by this function.
         **options -- various options given to the specific event store. Shall
                      not be used with this event store. Warning will be logged
                      for every extra non-recognized option. The only required
@@ -952,7 +940,7 @@ class SyncedRotationEventStores(EventStore):
 
         for section in options['storage-backends'].split(' '):
             try:
-                substore = rconfig.construct_eventstore(config, args, section)
+                substore = rconfig.construct_eventstore(config, section)
                 estore.add_rotated_store(substore)
             except Exception as e:
                 _logger.exception('Could not instantiate substore from'

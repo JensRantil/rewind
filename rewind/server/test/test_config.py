@@ -34,7 +34,7 @@ class TestInitialization(unittest.TestCase):
 
     def testInMemoryFallback(self):
         """Test `construct_eventstore(...)` defaults to in-memory estore."""
-        estore = rconfig.construct_eventstore(None, [])
+        estore = rconfig.construct_eventstore(None)
         self.assertIsInstance(estore, eventstores.InMemoryEventStore)
 
     def testStringRepresentationOfConfigurationError(self):
@@ -51,7 +51,7 @@ class TestInitialization(unittest.TestCase):
         config = configparser.ConfigParser()
         self.assertRaises(rconfig.ConfigurationError,
                           rconfig.construct_eventstore,
-                          config, [])
+                          config)
 
     def testMissingConfigEventStoreSection(self):
         """Test `construct_eventstore(...)` bails on missing class section."""
@@ -60,14 +60,14 @@ class TestInitialization(unittest.TestCase):
         config.set("general", "storage-backend", "nonexistsection")
         self.assertRaises(rconfig.ConfigurationError,
                           rconfig.construct_eventstore,
-                          config, [])
+                          config)
 
     def testMissingArgumentEventStoreSection(self):
         """Test `construct_eventstore(...)` bails on missing arg section."""
         config = configparser.ConfigParser()
         self.assertRaises(rconfig.ConfigurationError,
                           rconfig.construct_eventstore,
-                          config, [], "nonexistsection")
+                          config, "nonexistsection")
 
     def testMissingEventStoreClass(self):
         """Test `construct_eventstore(...)` bails on missing class path."""
@@ -77,7 +77,7 @@ class TestInitialization(unittest.TestCase):
         config.add_section("estoresection")
         self.assertRaises(rconfig.ConfigurationError,
                           rconfig.construct_eventstore,
-                          config, [])
+                          config)
 
     def testCreatingInMemoryStoreUsingConfig(self):
         """Full test of `construct_eventstore(...)`."""
@@ -89,7 +89,7 @@ class TestInitialization(unittest.TestCase):
         config.set("estoresection", "class",
                    "rewind.server.eventstores.InMemoryEventStore")
 
-        estore = rconfig.construct_eventstore(config, [])
+        estore = rconfig.construct_eventstore(config)
 
         self.assertIsInstance(estore, eventstores.InMemoryEventStore)
 
@@ -103,6 +103,6 @@ class TestInitialization(unittest.TestCase):
         config.set("estoresection", "class",
                    "rewind.server.eventstores.InMemoryEventStore")
 
-        estore = rconfig.construct_eventstore(config, [], "estoresection")
+        estore = rconfig.construct_eventstore(config, "estoresection")
 
         self.assertIsInstance(estore, eventstores.InMemoryEventStore)
