@@ -177,6 +177,24 @@ class TestCommandLineExecution(unittest.TestCase):
         # 2. If this test fails, we will keep the datapath that was created.
         shutil.rmtree(datapath)
 
+    def test_zmq_socket_context(self):
+        """Test `main._zmq_socket_context`..."""
+        socket_mock = mock.Mock()
+        context_mock = mock.Mock()
+        context_mock.socket.return_value = socket_mock
+        socket_mock.bind.side_effect = rconfig.ConfigurationError("Err")
+        try:
+            with main._zmq_socket_context(context_mock, "testtype",
+                                          ["tcp://127.0.0.1"]) as f:
+                pass
+        except rconfig.ConfigurationError:
+            pass
+        else:
+            self.fail("Expected Exception to be raised.")
+
+        context_mock.socket.assert_called_once_with("testtype")
+        socket_mock.bind.assert_called_once_with("tcp://127.0.0.1")
+
 
 class _RewindRunnerThread(threading.Thread):
 
