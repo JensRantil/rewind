@@ -162,11 +162,12 @@ class TestCommandLineExecution(unittest.TestCase):
         config.write(tempconfig)
         tempconfig.flush()
 
-        self.rewind = _RewindRunnerThread([tempconfig.name],
-                                          'tcp://127.0.0.1:8090')
-        self.rewind.start()
+        with _direct_stderr_to_stdout():
+            self.rewind = _RewindRunnerThread([tempconfig.name],
+                                              'tcp://127.0.0.1:8090')
+            self.rewind.start()
+            time.sleep(1)
 
-        time.sleep(1)
         self.assertFalse(self.rewind.isAlive(),
                          "Rewind was running for more than 1 second")
         self.assertEquals(os.listdir(datapath), [],
