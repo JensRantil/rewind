@@ -31,6 +31,7 @@ import random
 import shutil
 import tempfile
 import unittest
+import uuid
 
 import mock
 
@@ -230,6 +231,15 @@ class _TestEventStore:
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
+    def _add_another_event(self):
+        """Can be used to add another value, if needed by individual tests."""
+        key = str(uuid.uuid4())
+        val = str(uuid.uuid4())
+        self.keys += key
+        self.vals += val
+        self.items += (key, val)
+        self.store.add_event(key, val)
+
     def testQueryingAll(self):
         """Test query for all events."""
         result = self.store.get_events()
@@ -427,6 +437,11 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
 
+        if nkeys_in_last_batch == 0:
+            self._add_another_event()
+            nkeys_in_last_batch = len(self.keys) % evs_per_batch
+            self.assertEquals(nkeys_in_last_batch, 1)
+
         # If this is not true, this test is useless. No reasons to test if
         # there were no events written to this batch.
         self.assertTrue(nkeys_in_last_batch > 0)
@@ -440,6 +455,11 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         """Assert key duplicates are not possible."""
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
+
+        if nkeys_in_last_batch == 0:
+            self._add_another_event()
+            nkeys_in_last_batch = len(self.keys) % evs_per_batch
+            self.assertEquals(nkeys_in_last_batch, 1)
 
         # If this is tno true, this test is useless. No reasons to test if
         # there were no events written to this batch.
