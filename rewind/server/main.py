@@ -311,6 +311,7 @@ def run(options, exit_codeword=None):
                                                   ZMQ_NTHREADS)
         _logger.fatal(msg)
         return 1
+
     with _zmq_context_context(zmq_nthreads) as context, \
             _zmq_socket_context(context, zmq.REP, queryendp) as querysock, \
             _zmq_socket_context(context, zmq.PUB,

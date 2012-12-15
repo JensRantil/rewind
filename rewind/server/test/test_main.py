@@ -99,6 +99,18 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertFalse(rewind.isAlive())
         self.assertEqual(rewind.exit_code, None, "Expected exception.")
 
+    def testIncorrectZmqNThreadsOption(self):
+        """Assert ZMQ fails if the zmq-nthreads could not be parsed."""
+        rewind = _RewindRunnerThread({rconfig.DEFAULT_SECTION: {
+            'query-bind-endpoint': 'tcp://127.0.0.1',
+            'zmq-nthreads': 'not-an-integer',
+        }})
+        with _direct_stderr_to_stdout():
+            rewind.start()
+            rewind.join(2)
+        self.assertFalse(rewind.isAlive())
+        self.assertEqual(rewind.exit_code, 1, "Expected an error")
+
     def testHelp(self):
         """Testing commend line `--help` listing works."""
         with _direct_stderr_to_stdout():
@@ -262,9 +274,6 @@ class _RewindRunnerThread(threading.Thread):
                 thread.exit_code = None
             else:
                 print("Clean exit of runner.")
-                # If SystemExit is never thrown Python would have exitted with
-                # exit code 0
-                thread.exit_code = 0
         super(_RewindRunnerThread, self).__init__(target=exitcode_runner,
                                                   name="test-rewind",
                                                   args=args)
