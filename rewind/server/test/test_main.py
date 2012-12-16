@@ -88,6 +88,11 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertFalse(rewind.isAlive())
         self.assertEqual(rewind.exit_code, None, "Expected exception.")
 
+    def testGeneralSectionMissingException(self):
+        """Test behaviour when 'general' config option section is missing."""
+        configp = configparser.ConfigParser()
+        self.assertRaises(rconfig.ConfigurationError, main.run, configp)
+
     def testOnlyStreamingEndpointFails(self):
         """Assert Rewind won't start with only streaming endpoint defined."""
         with _direct_stderr_to_stdout():
