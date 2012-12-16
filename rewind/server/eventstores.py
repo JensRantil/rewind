@@ -24,16 +24,19 @@ import base64
 import collections
 import contextlib
 import hashlib
+import importlib
 import itertools
 import logging
 import os
 import sqlite3
 
+import rewind.server.config as rconfig
 
 _logger = logging.getLogger(__name__)
 
 
 # Utility functions and classes used by event stores
+
 
 def _get_checksum_persister(path):
     directory = os.path.dirname(path)
@@ -230,6 +233,19 @@ class EventStore(object):
         """Raised when querying with a key that does not exist."""
         pass
 
+    @staticmethod
+    def from_config(config, **options):
+        """Instantiate an event store.
+
+        Parameters:
+        config    -- the configuration file options read from file(s).
+        **options -- various options given to the specific event store.
+
+        returns   -- an event store.
+
+        """
+        raise NotImplementedError("Should be implemented by subclass.")
+
     def add_event(self, key, event):
         """Add event and corresponding key to the store.
 
@@ -280,6 +296,24 @@ class InMemoryEventStore(EventStore):
     def __init__(self):
         self.keys = []
         self.events = {}
+
+    @staticmethod
+    def from_config(_config, **options):
+        """Instantiate an in-memory event store from config.
+
+        Parameters:
+        _config   -- the configuration file options read from file(s). Not
+                      used.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option.
+
+        returns   -- an `InMemoryEventStore` event store.
+
+        """
+        rconfig.check_config_options("InMemoryEventStore", tuple(), tuple(),
+                                     options)
+        return InMemoryEventStore()
 
     def add_event(self, key, event):
         """Add an event and its corresponding key to the store."""
@@ -368,6 +402,26 @@ class SQLiteEventStore(EventStore):
                  " Actual status: {0}".format(status))
 
         self._path = path
+
+    @staticmethod
+    def from_config(_config, **options):
+        """Instantiate an SQLite event store from config.
+
+        Parameters:
+        _config   -- the configuration file options read from file(s). Not
+                     used.
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `SQLiteEventStore`.
+
+        """
+        expected_args = ('path',)
+        rconfig.check_config_options("SQLiteEventStore", expected_args,
+                                     tuple(), options)
+        return SQLiteEventStore(options['path'])
 
     def add_event(self, key, event):
         """Add an event and its corresponding key to the store."""
@@ -491,6 +545,25 @@ class LogEventStore(EventStore):
         self._path = path
         self._open()
 
+    @staticmethod
+    def from_config(config, **options):
+        """Instantiate an `LogEventStore` from config.
+
+        Parameters:
+        _config    -- the configuration file options read from file(s).
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `LogEventStore`.
+
+        """
+        expected_args = ('path',)
+        rconfig.check_config_options("LogEventStore", expected_args, tuple(),
+                                     options)
+        return LogEventStore(options['path'])
+
     def _open(self):
         self.f = open(self._path, 'at')
 
@@ -572,7 +645,6 @@ class LogEventStore(EventStore):
             self._open()
 
     def _unsafe_key_exists(self, needle):
-        eventstrs = []
         with open(self._path) as f:
             # Find events from 'from_' (or start if not given, that is)
             for line in f:
@@ -634,6 +706,38 @@ class RotatedEventStore(EventStore):
         self.batchno = batchno
 
         self.estore = self._open_event_store()
+
+    @staticmethod
+    def from_config(config, **options):
+        """Instantiate an `RotatedEventStore` from config.
+
+        Parameters:
+        _config    -- the configuration file options read from file(s).
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `RotatedEventStore`.
+
+        """
+        expected_args = ('prefix', 'realclass')
+        for arg in expected_args:
+            if arg not in options:
+                msg = "Required option missing: {0}"
+                raise rconfig.ConfigurationError(msg.format(arg))
+        # Not logging unrecognized options here, because they might be used
+        # by the real event store instantiated below.
+
+        classpath = options['realclass']
+        classpath_pieces = classpath.split('.')
+        classname = classpath_pieces[-1]
+        modulepath = '.'.join(classpath_pieces[0:-1])
+        module = importlib.import_module(modulepath)
+        estore_class = getattr(module, classname)
+
+        return RotatedEventStore(lambda fname: estore_class(fname),
+                                 options['path'], options['prefix'])
 
     def _determine_batchno(self):
         dirpath = self.dirpath
@@ -806,6 +910,45 @@ class SyncedRotationEventStores(EventStore):
         self.events_per_batch = events_per_batch
         self.count = 0
         self.stores = []
+
+    @staticmethod
+    def from_config(config, **options):
+        """Instantiate an `SyncedRotationEventStores` from config.
+
+        Parameters:
+        config    -- the configuration file options read from file(s).
+        **options -- various options given to the specific event store. Shall
+                     not be used with this event store. Warning will be logged
+                     for every extra non-recognized option. The only required
+                     key to this function is 'path'.
+
+        returns   -- a newly instantiated `SyncedRotationEventStores`.
+
+        """
+        required_args = ('storage-backends',)
+        optional_args = {'events_per_batch': 25000}
+        rconfig.check_config_options("SyncedRotationEventStores",
+                                     required_args,
+                                     tuple(optional_args.keys()), options)
+
+        if "events_per_batch" in options:
+            events_per_batch = int(options["events_per_batch"])
+        else:
+            events_per_batch = optional_args["events_per_batch"]
+
+        estore = SyncedRotationEventStores(events_per_batch)
+
+        for section in options['storage-backends'].split(' '):
+            try:
+                substore = rconfig.construct_eventstore(config, section)
+                estore.add_rotated_store(substore)
+            except Exception as e:
+                _logger.exception('Could not instantiate substore from'
+                                  ' section %s', section)
+                estore.close()
+                raise
+
+        return estore
 
     def add_rotated_store(self, rotated_store):
         """Add a `RotatedEventStore` that shall be rotated with the others."""

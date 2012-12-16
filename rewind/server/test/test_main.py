@@ -16,21 +16,37 @@
 
 """Test overall Rewind execution."""
 from __future__ import print_function
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import itertools
+import os.path
 import re
 import shutil
+try:
+    # Python < 3
+    import StringIO as io
+except ImportError:
+    # Python >= 3
+    import io
 import sys
 import tempfile
 import threading
 import time
+import traceback
 import unittest
 import uuid
 
 import mock
 import zmq
 
-import rewind.server.rewind as rewind
+import rewind.server.config as rconfig
+import rewind.server.eventstores as eventstores
+import rewind.server.main as main
 
 
 @contextlib.contextmanager
@@ -66,21 +82,34 @@ class TestCommandLineExecution(unittest.TestCase):
     def testAtLeastOneEndpointRequired(self):
         """Asserting we fail if no endpoint is defined."""
         with _direct_stderr_to_stdout():
-            rewind = _RewindRunnerThread([])
+            rewind = _RewindRunnerThread({})
             rewind.start()
             rewind.join(2)
         self.assertFalse(rewind.isAlive())
-        self.assertEqual(rewind.exit_code, 2)
+        self.assertEqual(rewind.exit_code, None, "Expected exception.")
 
     def testOnlyStreamingEndpointFails(self):
         """Assert Rewind won't start with only streaming endpoint defined."""
         with _direct_stderr_to_stdout():
-            rewind = _RewindRunnerThread(['--streaming-bind-endpoint',
-                                          'tcp://hello'])
+            rewind = _RewindRunnerThread({rconfig.DEFAULT_SECTION: {
+                'streaming-bind-endpoint': 'tcp://hello'
+            }})
             rewind.start()
             rewind.join(2)
         self.assertFalse(rewind.isAlive())
-        self.assertEqual(rewind.exit_code, 2)
+        self.assertEqual(rewind.exit_code, None, "Expected exception.")
+
+    def testIncorrectZmqNThreadsOption(self):
+        """Assert ZMQ fails if the zmq-nthreads could not be parsed."""
+        rewind = _RewindRunnerThread({rconfig.DEFAULT_SECTION: {
+            'query-bind-endpoint': 'tcp://127.0.0.1',
+            'zmq-nthreads': 'not-an-integer',
+        }})
+        with _direct_stderr_to_stdout():
+            rewind.start()
+            rewind.join(2)
+        self.assertFalse(rewind.isAlive())
+        self.assertEqual(rewind.exit_code, 1, "Expected an error")
 
     def testHelp(self):
         """Testing commend line `--help` listing works."""
@@ -96,11 +125,24 @@ class TestCommandLineExecution(unittest.TestCase):
         datapath = tempfile.mkdtemp()
         print("Using datapath:", datapath)
 
-        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
-                '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091',
-                '--datadir', datapath]
-        print(" ".join(args))
-        self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
+        tempconfig = tempfile.NamedTemporaryFile('w')
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.set("general", "query-bind-endpoint", 'tcp://127.0.0.1:8090')
+        config.set("general", "streaming-bind-endpoint",
+                   'tcp://127.0.0.1:8091')
+
+        config.add_section("estoresection")
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("estoresection", "path", os.path.join(datapath,
+                                                         "db.sqlite"))
+        config.write(tempconfig)
+        tempconfig.flush()
+
+        self.rewind = _RewindRunnerThread([tempconfig.name],
+                                          'tcp://127.0.0.1:8090')
         self.rewind.start()
 
         time.sleep(3)
@@ -111,6 +153,60 @@ class TestCommandLineExecution(unittest.TestCase):
         # 1. Datapath is not created in setUp()
         # 2. If this test fails, we will keep the datapath that was created.
         shutil.rmtree(datapath)
+
+    def testIncorrectConfiguration(self):
+        """Testing starting using incorrect configuration."""
+        datapath = tempfile.mkdtemp()
+        print("Using datapath:", datapath)
+
+        tempconfig = tempfile.NamedTemporaryFile('w')
+        config = configparser.ConfigParser()
+        config.add_section("general")
+        config.set("general", "storage-backend", "estoresection")
+        config.set("general", "query-bind-endpoint", 'tcp://127.0.0.1:8090')
+        config.set("general", "streaming-bind-endpoint",
+                   'tcp://127.0.0.1:8091')
+
+        config.add_section("estoresection")
+        config.set("estoresection", "class",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        # Deliberately leaving 'path' here to simulate a configuration error
+        config.write(tempconfig)
+        tempconfig.flush()
+
+        with _direct_stderr_to_stdout():
+            self.rewind = _RewindRunnerThread([tempconfig.name],
+                                              'tcp://127.0.0.1:8090')
+            self.rewind.start()
+            time.sleep(1)
+
+        self.assertFalse(self.rewind.isAlive(),
+                         "Rewind was running for more than 1 second")
+        self.assertEquals(os.listdir(datapath), [],
+                          "Expected no file to have been created.")
+
+        # Not removing this in tearDown for two reasons:
+        # 1. Datapath is not created in setUp()
+        # 2. If this test fails, we will keep the datapath that was created.
+        shutil.rmtree(datapath)
+
+    def test_zmq_socket_context(self):
+        """Test `main._zmq_socket_context`..."""
+        socket_mock = mock.Mock()
+        context_mock = mock.Mock()
+        context_mock.socket.return_value = socket_mock
+        socket_mock.bind.side_effect = rconfig.ConfigurationError("Err")
+        try:
+            with main._zmq_socket_context(context_mock, "testtype",
+                                          ["tcp://127.0.0.1"]) as f:
+                pass
+        except rconfig.ConfigurationError:
+            pass
+        else:
+            self.fail("Expected Exception to be raised.")
+
+        context_mock.socket.assert_called_once_with("testtype")
+        socket_mock.bind.assert_called_once_with("tcp://127.0.0.1")
 
 
 class _RewindRunnerThread(threading.Thread):
@@ -125,34 +221,62 @@ class _RewindRunnerThread(threading.Thread):
 
     _EXIT_CODE = b'EXIT'
 
-    def __init__(self, cmdline_args, exit_addr=None):
+    def __init__(self, bootparams, exit_addr=None):
         """Constructor.
 
         Parameters:
-        cmdline_args -- command line arguments used to execute the rewind.
-        exit_addr    -- the ZeroMQ address used to send the exit message to.
+        bootparams -- Can be either a dictionary of configuration options
+                      grouped by section, or a list of command line argument
+                      strings.
+        exit_addr  -- the ZeroMQ address used to send the exit message to.
 
         """
+        assert isinstance(bootparams, list) or isinstance(bootparams, dict)
         thread = self
 
-        assert '--exit-codeword' not in cmdline_args, \
-            "'--exit-codeword' is added by _RewindRunnerThread. Not elsewhere"
-        cmdline_args = (['--exit-codeword',
-                         _RewindRunnerThread._EXIT_CODE.decode()] +
-                        cmdline_args)
+        if isinstance(bootparams, list):
+            assert '--exit-codeword' not in bootparams, \
+                   ("'--exit-codeword' is added by _RewindRunnerThread."
+                    " Not from elsewhere.")
+            args = (main.main,
+                    bootparams + ['--exit-codeword',
+                                  _RewindRunnerThread._EXIT_CODE.decode()])
+        else:
+            assert isinstance(bootparams, dict)
+            bootparams = dict(bootparams)
 
-        def exitcode_runner(*args, **kwargs):
+            if "default" not in bootparams:
+                bootparams['default'] = {}
+            bootparams['default'] = {'exit-code':
+                                     _RewindRunnerThread._EXIT_CODE}
+
+            rows = []
+            for section, keyvals in bootparams.items():
+                rows.append("[{0}]".format(section))
+                for key, val in keyvals.items():
+                    rows.append("{0}={1}".format(key, val))
+
+            configfilecontent = "\n".join(rows)
+            options = configparser.SafeConfigParser()
+            options.readfp(io.StringIO(configfilecontent))
+
+            args = (main.run, options, _RewindRunnerThread._EXIT_CODE.decode())
+
+        def exitcode_runner(func, *args, **kwargs):
             try:
-                thread.exit_code = rewind.main(*args, **kwargs)
+                thread.exit_code = func(*args, **kwargs)
             except SystemExit as e:
+                print("Runner made SystemExit.")
                 thread.exit_code = e.code
+            except Exception as e:
+                print("Exception happened:", e)
+                traceback.print_exc()
+                thread.exit_code = None
             else:
-                # If SystemExit is never thrown Python would have exitted with
-                # exit code 0
-                thread.exit_code = 0
+                print("Clean exit of runner.")
         super(_RewindRunnerThread, self).__init__(target=exitcode_runner,
                                                   name="test-rewind",
-                                                  args=(cmdline_args,))
+                                                  args=args)
         self._exit_addr = exit_addr
 
     def stop(self, context=None):
@@ -178,8 +302,12 @@ class TestReplication(unittest.TestCase):
 
     def setUp(self):
         """Starting a Rewind instance to test replication."""
-        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090',
-                '--streaming-bind-endpoint', 'tcp://127.0.0.1:8091']
+        args = {
+            rconfig.DEFAULT_SECTION: {
+                'query-bind-endpoint': 'tcp://127.0.0.1:8090',
+                'streaming-bind-endpoint': 'tcp://127.0.0.1:8091'
+            }
+        }
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
@@ -290,7 +418,11 @@ class TestQuerying(unittest.TestCase):
                          'There were duplicate IDs.'
                          ' Maybe the UUID1 algorithm is flawed?')
 
-        args = ['--query-bind-endpoint', 'tcp://127.0.0.1:8090']
+        args = {
+            rconfig.DEFAULT_SECTION: {
+                'query-bind-endpoint': 'tcp://127.0.0.1:8090'
+            }
+        }
         self.rewind = _RewindRunnerThread(args, 'tcp://127.0.0.1:8090')
         self.rewind.start()
 
@@ -511,7 +643,7 @@ class TestIdGenerator(unittest.TestCase):
         key_checker = mock.Mock()
         key_checker.side_effect = [True, True, True, False]
 
-        generator = rewind._IdGenerator(key_checker)
+        generator = main._IdGenerator(key_checker)
         key = generator.generate()
 
         # Assert the returns key was checked for existence

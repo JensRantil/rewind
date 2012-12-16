@@ -16,6 +16,13 @@
 
 """Tests of event stores."""
 from __future__ import print_function
+
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import hashlib
 import itertools
@@ -24,11 +31,12 @@ import random
 import shutil
 import tempfile
 import unittest
+import uuid
 
 import mock
 
 import rewind.server.eventstores as eventstores
-import rewind.server.rewind as rewind
+import rewind.server.config as rconfig
 
 
 class TestKeyValuePersister(unittest.TestCase):
@@ -223,6 +231,15 @@ class _TestEventStore:
         for key, val in zip(self.keys, self.vals):
             self.store.add_event(key, val)
 
+    def _add_another_event(self):
+        """Can be used to add another value, if needed by individual tests."""
+        key = str(uuid.uuid4())
+        val = uuid.uuid4().bytes
+        self.keys += key
+        self.vals += val
+        self.items += (key, val)
+        self.store.add_event(key, val)
+
     def testQueryingAll(self):
         """Test query for all events."""
         result = self.store.get_events()
@@ -304,7 +321,9 @@ class TestEventStore(unittest.TestCase):
 
     def testStubs(self):
         """Make sure `EventStore` behaves the way we expect."""
-        estore = eventstores.EventStore()
+        self.assertRaises(NotImplementedError,
+                          eventstores.EventStore.from_config, None)
+
         estore = eventstores.EventStore()
         self.assertRaises(NotImplementedError, estore.add_event, b"key",
                           b"event")
@@ -418,6 +437,11 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
 
+        if nkeys_in_last_batch == 0:
+            self._add_another_event()
+            nkeys_in_last_batch = len(self.keys) % evs_per_batch
+            self.assertEquals(nkeys_in_last_batch, 1)
+
         # If this is not true, this test is useless. No reasons to test if
         # there were no events written to this batch.
         self.assertTrue(nkeys_in_last_batch > 0)
@@ -431,6 +455,11 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         """Assert key duplicates are not possible."""
         evs_per_batch = TestSyncedRotationEventStores.EVS_PER_BATCH
         nkeys_in_last_batch = len(self.keys) % evs_per_batch
+
+        if nkeys_in_last_batch == 0:
+            self._add_another_event()
+            nkeys_in_last_batch = len(self.keys) % evs_per_batch
+            self.assertEquals(nkeys_in_last_batch, 1)
 
         # If this is tno true, this test is useless. No reasons to test if
         # there were no events written to this batch.
@@ -468,6 +497,173 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         self.store = None
         for param in self.rotated_estore_params:
             self._check_md5_is_correct(param['dirpath'])
+
+
+class TestSyncedRotationEventStoresFromConfig(unittest.TestCase):
+
+    """Test instantiating `SyncedRotationEventStores` from config."""
+
+    def testCreatingCombinedRotatedLogFromConfigWithoutDefaults(self):
+        """Creating combined rotated store from config without defaults."""
+        self._testCreateCombinedRotatedLogFromConfig(False)
+
+    def testCreatingCombinedRotatedLogFromConfigWithDefaults(self):
+        """Creating combined rotated store from config with defaults."""
+        self._testCreateCombinedRotatedLogFromConfig(True)
+
+    def _testCreateCombinedRotatedLogFromConfig(self, defaults):
+        """Creating combined rotated store from config.
+
+        This class function is a helper for the actual tests.
+
+        Parameters:
+        defaults -- whether default values should be used or not for
+                    `SyncedRotationEventStores` instantiation. Can be used to
+                    toggle execution of different conditional branches to
+                    improve coverage.
+
+        """
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("rotated_sqlite", "prefix", "sqlite")
+        config.set("rotated_sqlite", "path", path)
+
+        config.add_section("rotated_appendlog")
+        config.set("rotated_appendlog", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_appendlog", "realclass",
+                   "rewind.server.eventstores.LogEventStore")
+        config.set("rotated_appendlog", "prefix", "appendlog")
+        config.set("rotated_appendlog", "path", path)
+
+        config.add_section("synced_rotator")
+        config.set("synced_rotator", "class",
+                   "rewind.server.eventstores.SyncedRotationEventStores")
+        config.set("synced_rotator", "storage-backends",
+                   "rotated_sqlite rotated_appendlog")
+        if not defaults:
+            config.set("synced_rotator", "events_per_batch", "25000")
+
+        # Random option to have coverage of logging of unknown options
+        config.set("synced_rotator", "foo", "bar")
+
+        estore = rconfig.construct_eventstore(config, "synced_rotator")
+
+        self.assertIsInstance(estore, eventstores.SyncedRotationEventStores)
+
+        shutil.rmtree(path)
+
+    def testCreatingSyncedRotatedLogFromConfigFromConfig(self):
+        """Create a `RotatedEventStore` from config."""
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("rotated_sqlite", "prefix", "sqlite")
+        config.set("rotated_sqlite", "path", path)
+
+        estore = rconfig.construct_eventstore(config, "rotated_sqlite")
+
+        self.assertIsInstance(estore, eventstores.RotatedEventStore)
+
+        shutil.rmtree(path)
+
+    def testFailCreatingSyncedRotatedLogFromConfigFromConfig(self):
+        """Test parameter checking on `RotatedEventStore` instantiation."""
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        # Not setting 'prefix' to force an Exception
+        config.set("rotated_sqlite", "path", path)
+
+        self.assertRaises(rconfig.ConfigurationError,
+                          rconfig.construct_eventstore, config,
+                          "rotated_sqlite")
+
+        shutil.rmtree(path)
+
+    def testFailCreatingCombinedRotatedLogFromConfig(self):
+        """Test option checking of `SyncedRotationEventStores` config."""
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_appendlog")
+        config.set("rotated_appendlog", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        # Deliberately leaving out `realclass`
+        config.set("rotated_appendlog", "prefix", "appendlog")
+        config.set("rotated_appendlog", "path", path)
+
+        config.add_section("synced_rotator")
+        config.set("synced_rotator", "class",
+                   "rewind.server.eventstores.SyncedRotationEventStores")
+        config.set("synced_rotator", "storage-backends",
+                   "rotated_appendlog")
+        config.set("synced_rotator", "events_per_batch", "25000")
+
+        self.assertRaises(rconfig.ConfigurationError,
+                          rconfig.construct_eventstore, config,
+                          "synced_rotator")
+
+        shutil.rmtree(path)
+
+    def testFailCreatingSubeventStore(self):
+        """Test option checking of sub/child event store configs."""
+        path = tempfile.mkdtemp()
+        print("Using temporary directory:", path)
+
+        config = configparser.ConfigParser()
+
+        config.add_section("rotated_sqlite")
+        config.set("rotated_sqlite", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_sqlite", "realclass",
+                   "rewind.server.eventstores.SQLiteEventStore")
+        config.set("rotated_sqlite", "prefix", "sqlite")
+        config.set("rotated_sqlite", "path", path)
+
+        config.add_section("rotated_appendlog")
+        config.set("rotated_appendlog", "class",
+                   "rewind.server.eventstores.RotatedEventStore")
+        config.set("rotated_appendlog", "realclass",
+                   "rewind.server.eventstores.LogEventStore")
+        config.set("rotated_appendlog", "prefix", "appendlog")
+        config.set("rotated_appendlog", "path", path)
+
+        config.add_section("synced_rotator")
+        config.set("synced_rotator", "class",
+                   "rewind.server.eventstores.SyncedRotationEventStores")
+        # Not setting `storage-backends` to force ConfigurationError
+        config.set("synced_rotator", "events_per_batch", "25000")
+
+        self.assertRaises(rconfig.ConfigurationError,
+                          rconfig.construct_eventstore, config,
+                          "synced_rotator")
+
+        shutil.rmtree(path)
 
 
 class TestRotatedEventStore(unittest.TestCase, _TestEventStore):
@@ -651,9 +847,95 @@ class TestLogEventStore(unittest.TestCase, _TestEventStore):
         os.remove(self.tempfile.name)
 
 
+class TestSQLiteEventStoreConfig(unittest.TestCase):
+
+    """Test `SQLiteEventStore.from_config(...)."""
+
+    def testBasicCreation(self):
+        """Making sure we can create `SQLiteEventStore` from config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        estore = eventstores.SQLiteEventStore.from_config(None,
+                                                          path=sqlitepath)
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testUnknownParameters(self):
+        """Making sure we handle unknown options in config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        estore = eventstores.SQLiteEventStore.from_config(None,
+                                                          path=sqlitepath,
+                                                          random="yes")
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testMissingOptions(self):
+        """Test missing config option behaviour."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        self.assertRaises(rconfig.ConfigurationError,
+                          eventstores.SQLiteEventStore.from_config, None)
+        shutil.rmtree(datapath)
+
+
+class TestLogEventStoreConfig(unittest.TestCase):
+
+    """Test `LogEventStore.from_config(...)."""
+
+    def testBasicCreation(self):
+        """Making sure we can create `LogEventStore` from config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.LogEventStore.from_config(None,
+                                                       path=sqlitepath)
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testUnknownParameters(self):
+        """Making sure we handle unknown options in config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.LogEventStore.from_config(None,
+                                                       path=sqlitepath,
+                                                       random="yes")
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testMissingOptions(self):
+        """Test missing config option behaviour."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'db.sqlite')
+        self.assertRaises(rconfig.ConfigurationError,
+                          eventstores.LogEventStore.from_config, None)
+        shutil.rmtree(datapath)
+
+
+class TestInMemoryEventStoreConfig(unittest.TestCase):
+
+    """Test `InMemoryEventStore.from_config(...)."""
+
+    def testBasicCreation(self):
+        """Making sure we can create `InMemoryEventStore` from config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.InMemoryEventStore.from_config(None)
+        estore.close()
+        shutil.rmtree(datapath)
+
+    def testUnknownParameters(self):
+        """Making sure we handle unknown options in config."""
+        datapath = tempfile.mkdtemp()
+        sqlitepath = os.path.join(datapath, 'log.txt')
+        estore = eventstores.InMemoryEventStore.from_config(None,
+                                                            random="yes")
+        estore.close()
+        shutil.rmtree(datapath)
+
+
 class TestSQLiteEventStore(unittest.TestCase, _TestEventStore):
 
-    """Test `SQLiteEventStore`."""
+    """Test event store operations against an `SQLiteEventStore`."""
 
     def setUp(self):
         """Create and populate a temporary `_SQLiteEventStore`."""

@@ -10,7 +10,7 @@ if py_version <= (2, 6):
 
 setup(
     name='rewind',
-    version='0.2.0',
+    version='0.3.0',
     author='Jens Rantil',
     author_email='jens.rantil@gmail.com',
     license='GNU AGPL, version 3',
@@ -52,7 +52,7 @@ setup(
     test_suite="rewind.server.test",
     entry_points={
         'console_scripts': [
-            'rewind = rewind.server.rewind:main',
+            'rewind = rewind.server.main:main',
         ]
     },
 )

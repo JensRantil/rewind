@@ -50,8 +50,8 @@ class TestCodeFormat(unittest.TestCase):
         """Test that we conform to PEP8."""
         pep8style = pep8.StyleGuide()
         result = pep8style.check_files(self._pyfiles)
-        self.assertEqual(result.total_errors, 2,
-                         "Found code syntax errors (and warnings). Was")
+        self.assertEqual(result.total_errors, 0,
+                         "Found code syntax errors (and warnings).")
 
     def testPep257Conformance(self):
         """Test that we conform to PEP257."""

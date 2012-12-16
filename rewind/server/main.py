@@ -18,6 +18,12 @@
 from __future__ import print_function
 from __future__ import absolute_import
 import argparse
+try:
+    # Python < 3
+    import ConfigParser as configparser
+except ImportError:
+    # Python >= 3
+    import configparser
 import contextlib
 import hashlib
 import itertools
@@ -29,6 +35,7 @@ import uuid
 
 import zmq
 
+import rewind.server.config as config
 import rewind.server.eventstores as eventstores
 
 
@@ -147,7 +154,7 @@ class _RewindRunner(object):
         try:
             events = self.eventstore.get_events(fro if fro else None,
                                                 to if to else None)
-        except eventstores.EventStore.EventKeyDoesNotExistError as e:
+        except eventstores.EventStore.EventKeyDoesNotExistError:
             _logger.exception("A client requested a key that does not"
                               " exist:")
             self.query_socket.send(b"ERROR Key did not exist")
@@ -224,68 +231,100 @@ def _zmq_socket_context(context, socket_type, bind_endpoints):
     socket = context.socket(socket_type)
     try:
         for endpoint in bind_endpoints:
-            socket.bind(endpoint)
+            try:
+                socket.bind(endpoint)
+            except Exception:
+                _logger.fatal("Could not bind to '%s'.", endpoint)
+                raise
         yield socket
     finally:
         socket.close()
 
 
-def run(args):
+def _get_with_fallback(config, section, option, fallback):
+    """Get a configuration value, using fallback for missing values.
+
+    Parameters:
+    config   -- the configparser to try to extract the option value from.
+    section  -- the section to extract value from.
+    option   -- the name of the option to extract value from.
+    fallback -- fallback value to return if no value was set in `config`.
+
+    returns  -- the config option value if it was set, else fallback.
+
+    """
+    exists = (config.has_section(section)
+              and config.has_option(section, option))
+
+    if not exists:
+        return fallback
+    else:
+        return config.get(section, option)
+
+
+def run(options, exit_codeword=None):
     """Actually execute the program.
 
     Calling this method can be done from tests to simulate executing the
     application from command line.
 
     Parameters:
-    args    -- a list of command line parameters (omitting the initial program
-               list item given in `sys.argv`.
+    options       -- `optionparser` from config file.
+    exit_codeword -- an optional exit_message that will shut down Rewind. Used
+                     for testing.
 
-    returns -- a proposed exit code for the application.
+    returns -- exit code for the application. Non-zero for errors.
 
     """
-    if args.datadir:
-        dbdir = os.path.join(args.datadir, 'db')
-        def db_creator(filename):
-            return eventstores.SQLiteEventStore(filename)
-        rotated_db_estore = eventstores.RotatedEventStore(db_creator, dbdir,
-                                                          'sqlite')
+    QUERY_ENDP_OPT = 'query-bind-endpoint'
+    STREAM_ENDP_OPT = 'streaming-bind-endpoint'
+    ZMQ_NTHREADS = "zmq-nthreads"
 
-        logdir = os.path.join(args.datadir, 'appendlog')
-        def log_creator(filename):
-            return eventstores.LogEventStore(filename)
-        rotated_log_estore = eventstores.RotatedEventStore(log_creator,
-                                                           logdir,
-                                                           'appendlog')
+    if not options.has_section(config.DEFAULT_SECTION):
+        msg = "Missing default section, `{0}`."
+        fmsg = msg.format(config.DEFAULT_SECTION)
+        raise config.ConfigurationError(fmsg)
 
-        EVENTS_PER_BATCH = 30000
-        eventstore = eventstores.SyncedRotationEventStores(EVENTS_PER_BATCH)
+    if not options.has_option(config.DEFAULT_SECTION, QUERY_ENDP_OPT):
+        msg = "Missing (query) bind endpoint in option file: {0}:{1}"
+        fmsg = msg.format(config.DEFAULT_SECTION, QUERY_ENDP_OPT)
+        raise config.ConfigurationError(fmsg)
 
-        # Important DB event store is added first. Otherwise, fast event
-        # querying will not be enabled.
-        eventstore.add_rotated_store(rotated_db_estore)
-        eventstore.add_rotated_store(rotated_log_estore)
+    queryendp = options.get(config.DEFAULT_SECTION, QUERY_ENDP_OPT).split(",")
+    streamendp = _get_with_fallback(options, config.DEFAULT_SECTION,
+                                    STREAM_ENDP_OPT, '').split(",")
+    queryendp = filter(lambda x: x.strip(), queryendp)
+    streamendp = filter(lambda x: x.strip(), streamendp)
 
-        # TODO: Make sure event stores are correctly mirrored
-    else:
-        _logger.warn("Using InMemoryEventStore. Events are not persisted."
-                     " See --datadir parameter for further info.")
-        eventstore = eventstores.InMemoryEventStore()
+    try:
+        eventstore = config.construct_eventstore(options)
+    except config.ConfigurationError as e:
+        _logger.exception("Could instantiate event store from config file.")
+        raise
 
-    with _zmq_context_context(3) as context, \
-            _zmq_socket_context(context, zmq.REP, args.query_bind_endpoints) \
-            as query_socket, \
+    zmq_nthreads = _get_with_fallback(options, config.DEFAULT_SECTION,
+                                      ZMQ_NTHREADS, '3')
+    try:
+        zmq_nthreads = int(zmq_nthreads)
+    except ValueError:
+        msg = "{0}:{1} must be an integer".format(config.DEFAULT_SECTION,
+                                                  ZMQ_NTHREADS)
+        _logger.fatal(msg)
+        return 1
+
+    with _zmq_context_context(zmq_nthreads) as context, \
+            _zmq_socket_context(context, zmq.REP, queryendp) as querysock, \
             _zmq_socket_context(context, zmq.PUB,
-                                args.streaming_bind_endpoints) \
-            as streaming_socket:
+                                streamendp) as streamsock:
         # Executing the program in the context of ZeroMQ context as well as
         # ZeroMQ sockets. Using with here to make sure are correctly closing
         # things in the correct order, particularly also if we have an
         # exception or similar.
 
-        runner = _RewindRunner(eventstore, query_socket,
-                               streaming_socket, (args.exit_message.encode()
-                                                  if args.exit_message
-                                                  else None))
+        runner = _RewindRunner(eventstore, querysock, streamsock,
+                               (exit_codeword.encode()
+                                if exit_codeword
+                                else None))
         runner.run()
 
     return 0
@@ -303,42 +342,20 @@ def main(argv=None):
 
     """
     parser = argparse.ArgumentParser(
-        description='Event storage and event proxy.'
+        description='Event storage and event proxy.',
+        usage='%(prog)s <configfile>'
     )
     parser.add_argument('--exit-codeword', metavar="MSG", dest="exit_message",
-                        help="An incoming message that makes Rewind quit."
-                             " Used for testing.")
-    parser.add_argument('--datadir', '-D', metavar="DIR",
-                        help="The directory where events will be persisted."
-                             " Will be created if non-existent. Without this"
-                             " parameter, events will be stored in-memory"
-                             " only.")
-
-    query_group = parser.add_argument_group(
-        title='Querying endpoints',
-        description='Endpoints listening for event queries.'
-    )
-    query_group.add_argument('--query-bind-endpoint',
-                             metavar='ZEROMQ-ENDPOINT', default=[],
-                             help='the bind address for querying of events',
-                             action='append', dest='query_bind_endpoints')
-    stream_group = parser.add_argument_group(
-        title='Streaming endpoints',
-        description='Endpoints for streaming incoming events.'
-    )
-    stream_group.add_argument('--streaming-bind-endpoint',
-                              metavar='ZEROMQ-ENDPOINT', default=[],
-                              help='the bind address for streaming of events',
-                              action='append',
-                              dest='streaming_bind_endpoints')
+                        default=None, help="An incoming message that makes"
+                                           " Rewind quit. Used for testing.")
+    parser.add_argument('configfile')
 
     args = argv if argv is not None else sys.argv[1:]
     args = parser.parse_args(args)
 
-    if not args.query_bind_endpoints:
-        errmsg = ("You must specify a query endpoint.\n"
-                  "(there's no use in simply having a streaming endpoint)")
-        parser.error(errmsg)
+    config = configparser.SafeConfigParser()
+    with open(args.configfile) as f:
+        config.readfp(f)
 
-    exitcode = run(args)
+    exitcode = run(config, args.exit_message)
     return exitcode
