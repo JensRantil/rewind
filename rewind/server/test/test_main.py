@@ -88,6 +88,11 @@ class TestCommandLineExecution(unittest.TestCase):
         self.assertFalse(rewind.isAlive())
         self.assertEqual(rewind.exit_code, None, "Expected exception.")
 
+    def testGeneralSectionMissingException(self):
+        """Test behaviour when 'general' config option section is missing."""
+        configp = configparser.ConfigParser()
+        self.assertRaises(rconfig.ConfigurationError, main.run, configp)
+
     def testOnlyStreamingEndpointFails(self):
         """Assert Rewind won't start with only streaming endpoint defined."""
         with _direct_stderr_to_stdout():
@@ -245,10 +250,10 @@ class _RewindRunnerThread(threading.Thread):
             assert isinstance(bootparams, dict)
             bootparams = dict(bootparams)
 
-            if "default" not in bootparams:
-                bootparams['default'] = {}
-            bootparams['default'] = {'exit-code':
-                                     _RewindRunnerThread._EXIT_CODE}
+            if "general" not in bootparams:
+                bootparams['general'] = {}
+            EXCODE = _RewindRunnerThread._EXIT_CODE
+            bootparams['general']['exit-code'] = EXCODE
 
             rows = []
             for section, keyvals in bootparams.items():

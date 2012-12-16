@@ -234,10 +234,10 @@ class _TestEventStore:
     def _add_another_event(self):
         """Can be used to add another value, if needed by individual tests."""
         key = str(uuid.uuid4())
-        val = uuid.uuid4().bytes
-        self.keys += key
-        self.vals += val
-        self.items += (key, val)
+        val = str(uuid.uuid4()).encode()
+        self.keys.append(key)
+        self.vals.append(val)
+        self.items.append((key, val))
         self.store.add_event(key, val)
 
     def testQueryingAll(self):
@@ -469,10 +469,9 @@ class TestSyncedRotationEventStores(unittest.TestCase, _TestEventStore):
         randomdata = b"RANDOM DATA THIS IS"
         for key in keys_in_last_batch:
             # `SyncedRotatedEventStore` only checks the current opened event
-            # store.  That's why we only check keys from `self.keys3`
+            # store.  That's why we only check keys for the last batch.
             self.assertRaises(eventstores.EventStore.EventKeyAlreadyExistError,
                               self.store.add_event, key, randomdata)
-            #self.store.add_event(key, randomdata)
 
     def _check_md5_is_correct(self, dirpath):
         print("Directory:", dirpath)
