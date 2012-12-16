@@ -234,7 +234,7 @@ class _TestEventStore:
     def _add_another_event(self):
         """Can be used to add another value, if needed by individual tests."""
         key = str(uuid.uuid4())
-        val = str(uuid.uuid4())
+        val = uuid.uuid4().bytes
         self.keys += key
         self.vals += val
         self.items += (key, val)
