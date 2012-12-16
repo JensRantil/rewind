@@ -245,10 +245,10 @@ class _RewindRunnerThread(threading.Thread):
             assert isinstance(bootparams, dict)
             bootparams = dict(bootparams)
 
-            if "default" not in bootparams:
-                bootparams['default'] = {}
-            bootparams['default'] = {'exit-code':
-                                     _RewindRunnerThread._EXIT_CODE}
+            if "general" not in bootparams:
+                bootparams['general'] = {}
+            EXCODE = _RewindRunnerThread._EXIT_CODE
+            bootparams['general']['exit-code'] = EXCODE
 
             rows = []
             for section, keyvals in bootparams.items():
