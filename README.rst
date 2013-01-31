@@ -228,7 +228,7 @@ code. That way you know nothing was broken beforehand.
 integration that can be accessed at
 http://travis-ci.org/#!/JensRantil/rewind Every time a pull request is
 being made to https://github.com/JensRantil/rewind, Travis CI will make
-a commend about whether the pull request breaks the test suite or not.
+a comment about whether the pull request breaks the test suite or not.
 
 .. _The Rewind central github repository: https://github.com/JensRantil/rewind
 .. _Travis CI: http://travis-ci.org
