@@ -145,15 +145,15 @@ of ranges of events based on event ids.
 
 There are two types of responses that can be given upon a query:
 
-* An error. See "Error response" below.
+* An error. See "Error response" below; or
 
-* The response of an event query is a resultset containing events. It's
-  a multipart message containing frames like so; eventid #1, event #1,
-  eventid #2, event #2, eventid #3, event #3, ... where eventid #X is
-  the event id for event X. At most 100 messages will be returned. If
-  Rewind did not cap number of events, the result will be appended by a
-  last frame containing the ASCII content ``END``. It is up to the
-  client to make requests repeatedly if the result set is capped.
+* a resultset containing events. It's a multipart message containing
+  frames like so; eventid #1, event #1, eventid #2, event #2, eventid
+  #3, event #3, ... where eventid #X is the event id for event X. At
+  most 100 messages will be returned. If Rewind did not cap number of
+  events, the result will be appended by a last frame containing the
+  ASCII content ``END``. It is up to the client to make requests
+  repeatedly if the result set is capped.
 
 Error response
 ``````````````
