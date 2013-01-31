@@ -159,9 +159,9 @@ Error response
 ``````````````
 If anything goes wrong, a single message starting with the ASCII text
 ``ERROR`` will be sent with the response. This means an error occured.
-The rest of message contains a human readable description of the actual
-error that occured. This information can be highly useful for remote
-clients to debug any problems that might arise.
+The rest of message contains a human readable (ASCII) description of the
+actual error that occured. This information can be highly useful for
+remote clients to debug any problems that might arise.
 
 Event stream
 ------------
