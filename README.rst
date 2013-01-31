@@ -224,6 +224,10 @@ after the whole test suite has been executed.
 As always, try to run the test suite *before* starting to mess with the
 code. That way you know nothing was broken beforehand.
 
+Generally, I try to keep a 100% code coverage of the ``rewind.server``
+package. Due to some Python 3 support hack, the coverage is around 99%.
+for Python 2.
+
 `The Rewind central github repository`_ also has `Travis CI`
 integration that can be accessed at
 http://travis-ci.org/#!/JensRantil/rewind Every time a pull request is
