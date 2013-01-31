@@ -191,9 +191,6 @@ etcetera.
 
 Checking out
 ------------
-To start developing you need to install the ZeroMQ library on your system
-beforehand.
-
 This is how you check out the `rewind` library into a virtual environment::
 
     cd <your development directory>
