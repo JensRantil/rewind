@@ -1,3 +1,9 @@
+**This project is fully functional, but only supports a single event
+stream.  I've taken the lessons learnt with Rewind and applied the
+knowledge to the next generation of Rewind, `Gorewind`_.**
+
+.. _Gorewind: https://github.com/JensRantil/gorewind
+
 =======
 Rewind
 =======
