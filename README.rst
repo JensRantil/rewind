@@ -266,6 +266,6 @@ This package has been developed by Jens Rantil <jens.rantil@gmail.com>.
 You can also reach me through snailmail at::
 
     Jens Rantil
-    Lilla Södergatan 6A
-    22353 Lund
+    Brålunden 4
+    16774 Bromma
     SWEDEN
