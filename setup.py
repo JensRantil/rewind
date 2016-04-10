@@ -6,7 +6,7 @@ import sys
 py_version = sys.version_info[:2]
 if py_version <= (2, 6):
     raise RuntimeError("Python <= 2.6 does not ship with argparse. "
-                        "Therefore, rewind will not work with these.")
+                       "Therefore, rewind will not work with these.")
 
 
 setup(
