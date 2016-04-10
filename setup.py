@@ -1,3 +1,4 @@
+"""Setup script for Rewind."""
 from setuptools import setup
 import sys
 
